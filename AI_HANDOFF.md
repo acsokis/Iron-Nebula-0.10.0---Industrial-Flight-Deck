@@ -1,91 +1,77 @@
-# Iron Nebula — AI Handoff
+# Iron Nebula - AI handoff
 
-Read this file before changing the project. Update it at the end of each AI
-session with verified changes, tests, branch/commit state and remaining work.
-Do not treat a partial implementation as a release.
+Read this file before project work and update it after each AI session. Record
+verified outcomes and open work; do not imply that an unpublished build is a
+release. Local-only implementation notes use the ignored `_o_privat.md` suffix.
 
-## Project shape
+## Repository map
 
-- `Source/` is the Windows MonoGame game. The `desktop-release-hardening`
-  branch targets .NET 10; the `engine/godot-nvidia` branch still has its own
-  project-file history. Do not switch branches with local work unstashed.
-- `Web/` is the WebGL2 game and browser P2P implementation.
-- `Godot/` is an experimental engine preview, not a full campaign or network
-  co-op port. `RUN_GODOT_PREVIEW.bat` at the repository root launches it.
-- The requested gameplay scope is cross-platform: a damage-dependent,
-  texture-alpha-matched metallic hull frame; boss attack/shield/damage phases;
-  restrained enemy scaling as co-op party size increases; and improved pickup
-  yields for larger parties.
+- `Source/`: Windows MonoGame game and platform-specific features.
+- `Web/`: browser game, automated browser tests and static deployment.
+- `Godot/`: local 2.5D engine preview and its regression checks.
+- `RUN_GODOT_PREVIEW.bat`: project-root launcher for repeatable Godot testing.
 
-## Verified work in this handoff
+The Windows game and helper checks target .NET 10. The three implementations
+have separate storage and networking; do not infer platform parity from a
+change or test in another implementation.
 
-On `engine/godot-nvidia`, feature commit `170dd6a` adds the gameplay scope to
-Web and the Godot preview. The current branch also contains the documentation
-and handoff follow-up commits; none have been pushed.
+## Current working state
 
-- Web package version is `0.10.0` (development; not published).
-- Web hull frames appear when damaged and disappear at full repair. Bosses use
-  a 13-second cycle: 6 seconds attack, 3 shield, 4 damage. The shield blocks
-  damage and the damage window amplifies hits. Enemy HP rises 8% per extra
-  player, up to 40%; enemy fire rate and projectile speed rise 2.5% per extra
-  player. Five/six-player health, shield and credit pickups give one extra unit.
-- Godot preview has the matching damage frame, boss cycle, party-size scaling
-  and larger-party health/shield pickups. `--party-size=1..6` exercises party
-  scaling; it does not add actual multiplayer.
-- The Windows desktop has **not** received these gameplay changes.
+- Working branch: `engine/godot-nvidia`; current base commit before this work:
+  `4d4547c`. Confirm `git status` and `git log` before committing.
+- Windows now targets .NET 10 and includes texture-alpha-aligned metallic
+  backing during hull damage, boss attack/shield/damage phases, an exposed-phase
+  damage bonus, and restrained party scaling for enemy durability, firing rate
+  and pickup rewards. Previously packaged but missing source assets were
+  restored to `Assets/`, including the owner-authorized soundtrack.
+- The browser and Godot boss/co-op work is present in the existing project
+  history. Godot remains a local visual/physics preview, not network co-op or
+  full campaign parity.
+- Godot includes the themed loading flow and flight-deck menu, multi-depth
+  sector backgrounds, a damage-responsive hull frame, and destructible physical
+  station/asteroid scenery with bounded debris and effects.
+- Public project documentation was refreshed. `PROJECT_NOTES_o_privat.md` is
+  local-only and must not be committed, pushed or included in release packages.
 
-## Verification
+## Verification completed
 
-All commands below passed on the current Web/Godot source:
+From the repository root in PowerShell:
 
 ```powershell
-cd Web
-npm.cmd test
-.\node_modules\.bin\playwright.cmd test features.spec.js -g "six separate browsers exchange real P2P movement, shots and ready state" --workers=1 --repeat-each=3
-.\node_modules\.bin\playwright.cmd test damage.spec.js --workers=1
-npm.cmd run build
-npm.cmd run release:verify
-cd ..
+dotnet build IronNebula.csproj -c Release --no-restore --verbosity minimal
+dotnet run --project Tools\CoopChecks\CoopChecks.csproj -c Release
+dotnet run --project Tools\VisualChecks\VisualChecks.csproj -c Release
+.\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --editor --quit
 .\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\gameplay_checks.gd
+.\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\smoke.gd
 ```
 
-Results: 33 Web unit tests passed; the six-browser P2P test passed three times;
-the damage Playwright test passed; the production build passed (with the
-existing >700 kB chunk-size warning); release verification passed for 61 files
-(13.85 MiB); Godot printed `PASS: 16` gameplay checks. The full browser suite
-was not run. The untouched desktop baseline at `c0137d1` also passed
-`dotnet build IronNebula.csproj -c Release` with zero warnings/errors,
-32 co-op transport checks and 1,031 controller checks. Those desktop checks do
-not validate 0.10.0 gameplay parity. Playwright Chromium was installed in the
-user profile because the prior local browser cache had completion markers but
-no executable.
+Latest results: Windows Release build succeeded with no warnings or errors;
+37 co-op transport/gameplay-rule checks and 20 visual/physics checks passed.
+Godot import passed, with 18 gameplay checks and 64 smoke checks passing. The
+flight-deck menu and gameplay were reviewed in Forward+ raster captures on an
+NVIDIA GeForce RTX 4080. Captures are ignored local QA images.
 
-## Branches, local state and constraints
+Both release archives were rebuilt and inspected: the Windows ZIP contains one
+executable and every runtime asset; the Godot ZIP contains only its executable
+and resource pack. These checks do not prove physical controller compatibility,
+cross-network co-op, clean-machine installation, long-session stability or
+Windows rendered quality. The archives have not been published.
 
-- Current intended source branch: `engine/godot-nvidia`; feature commit `170dd6a`.
-- `desktop-release-hardening` remains at `c0137d1` and was clean after a
-  desktop implementation attempt was undone in the editor during the session.
-  Do not restore or re-create those source edits without the user's explicit
-  request.
-- The desktop feature port, release archives, GitHub push and GitHub Release are
-  not complete. No Actions workflow was manually started.
-- Preserve `stash@{0}` ("Preserve local VS and Godot settings"), which contains
-  machine-local `IronNebula.sln`, `project.godot` and
-  `Properties/launchSettings.json`. Existing stashes `stash@{1}` and
-  `stash@{2}` predate this task; do not drop or pop them automatically.
-- Keep ignored `.engine/` and `.godot/` runtime/build caches.
-- The original developer's sound-distribution rights were confirmed by the
-  user; do not remove the requested soundtrack.
+## Open work and constraints
 
-## Next steps
+- Complete Windows visual and physical-device review, including the metallic
+  hull backing and boss phase transitions.
+- Launch both archives in clean environments before publication.
+- Run the browser checks if browser source or deployment settings change.
+- Do not publish local private notes, user saves, ignored engine caches or
+  unverified binaries. Do not manually trigger GitHub Actions.
+- Preserve existing local editor settings and Git stashes.
 
-1. Continue only after respecting the editor undo; ask before reapplying those
-   desktop source changes.
-2. Port and test the same hull, boss-cycle, party and pickup behavior in the
-   .NET 10 desktop branch, including both projectile and beam damage paths.
-3. Run the .NET 10 Release build and targeted checks. Reconcile version and
-   release documentation only after platform parity is verified.
-4. Build minimal Windows and Godot release archives; keep archives as GitHub
-   Release assets rather than Git blobs. Clean only known generated packaging
-   artifacts.
-5. Commit and push only after validation. Do not manually trigger Actions.
+## Handoff maintenance
+
+Before ending future project work, update this file with the exact branch and
+revision, changes actually made, commands and results, remaining release gates,
+and any user-reverted edits. Keep public notes concise and outcome-oriented;
+retain proprietary tuning, implementation rationale and sensitive behavioral
+details only in local ignored notes.

@@ -1,41 +1,38 @@
-# Iron Nebula — kiadás előtti tesztlista
+# Kiadás előtti ellenőrzőlista
 
-Ez a lista a Web, Windows desktop és Godot változat külön ellenőrzésére szolgál.
-Az automatizált PASS nem helyettesíti a fizikai hardveres és teljes játékmeneti
-teszteket. Az aktuális ágak és ismert blokkolók: [AI handoff](AI_HANDOFF.md).
+Az automatizált PASS nem helyettesíti a fizikai hardveres, hálózati és teljes
+játékmeneti ellenőrzést. Az ágankénti állapotot az [AI-átadás](AI_HANDOFF.md)
+rögzíti.
 
-## Web
+## Böngésző
 
-- [ ] `cd Web; npm.cmd test` — szimuláció, bossfázisok, party-skálázás és protokoll.
-- [ ] Playwright `damage.spec.js` — sérülésnél frame, javításnál eltűnik.
-- [ ] Playwright hat böngészős P2P-teszt — mozgás, lövések, ready állapot, szektorváltás.
-- [ ] Telefonos vezérlés, kontrollerhint, loading retry és WebGL2 smoke.
-- [ ] `npm.cmd run build` és `npm.cmd run release:verify`.
-- [ ] Fizikai telefon, gamepad, HDR-kijelző és többgépes Internet/NAT-próba.
+- [ ] `cd Web; npm.cmd test`
+- [ ] `npm.cmd run build` és `npm.cmd run release:verify`
+- [ ] A böngészős smoke és a hat résztvevős co-op regressziós teszt sikeres
+- [ ] Fizikai telefon, kontroller, HDR-kijelző és többgépes hálózat ellenőrizve
 
-## Windows desktop (.NET 10 release ág)
+## Windows desktop
 
-- [ ] Tisztán restaurálható .NET 10 Release build.
-- [ ] Controller- és co-op loopback-checkek, majd host plusz öt kliens smoke.
-- [ ] Metallic hull-frame láthatósága sérülés/javítás alatt.
-- [ ] Boss attack/shield/damage fázis, mindkét fegyversebzés útvonal és pickuphozam.
-- [ ] Easy/Normal/Hard nehézség és 1–6 játékos összehasonlítása.
-- [ ] Témázott ablak, induló loading UI, hangok és mentés.
-- [ ] Release ZIP indítása tiszta gépen; csak szükséges futtatási fájlok legyenek benne.
+- [ ] Tisztán restaurálható Release build, figyelmeztetés és fordítási hiba nélkül
+- [ ] Kontroller- és co-op-ellenőrzések a jelenlegi desktop forráson
+- [ ] Sérülés/javítás, bossállapotok és ko-op felvételi hozamok ellenőrizve
+- [ ] Témázott ablak, induló betöltőfelület, hang és mentés ellenőrizve
+- [ ] Kiadási csomag tiszta Windows-környezetben elindul
 
 ## Godot preview
 
-- [ ] Projektgyökérbeli `RUN_GODOT_PREVIEW.bat` editor és preview módban.
-- [ ] Betöltőképernyő, textúra alfájához igazodó sérülési frame, majd javítás.
-- [ ] Boss attack/shield/damage ciklus és pajzs/sebzés ablak.
-- [ ] `Godot/tests/gameplay_checks.gd` PASS.
-- [ ] `--party-size=1..6` értékekkel ellenség- és pickup-skálázás.
-- [ ] NVIDIA path-tracing és raster fallback, valós GPU-n.
-- [ ] Kiadási ZIP launch; editor, cache és engine-forrás nem kerül az assetbe.
+- [ ] Projektgyökérbeli `RUN_GODOT_PREVIEW.bat` preview és editor módban
+- [ ] Betöltőképernyő és ipari repülési menü ellenőrizve
+- [ ] Többrétegű háttér, szektorváltás és eredeti díszítőgrafika ellenőrizve
+- [ ] Hajó frame-je a sérüléskor megjelenik, javításkor eltűnik
+- [ ] Lövés eltávolít voxelcellákat, és fizikai törmelék keletkezik
+- [ ] `Godot/tests/gameplay_checks.gd` és `Godot/tests/smoke.gd` sikeres
+- [ ] RTX és raszteres megjelenítés ellenőrizve támogatott GPU-n
+- [ ] Kiadási ZIP tiszta környezetben indul; editor és cache nem kerül bele
 
-## Összesített kiadási feltételek
+## Közös kiadási feltételek
 
-- [ ] A három változatban a kért játékmenet-paritás igazolt.
-- [ ] Minden kapcsolódó Markdown, changelog és [AI_HANDOFF.md](AI_HANDOFF.md) aktuális.
-- [ ] A release csomagok és ellenőrzési jegyzőkönyvek elkészültek.
-- [ ] Commit/push és GitHub Release csak a fenti tesztek után.
+- [ ] A platformonkénti funkciók és korlátozások dokumentáltak
+- [ ] Licenc- és biztonsági felülvizsgálat lezárult
+- [ ] Minden csomag és checksum ellenőrzött
+- [ ] Commit, push és kiadás csak sikeres elfogadási ellenőrzés után

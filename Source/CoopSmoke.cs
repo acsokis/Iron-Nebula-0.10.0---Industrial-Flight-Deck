@@ -12,6 +12,7 @@ public sealed partial class IronNebulaGame
     private readonly HashSet<int> _coopSmokeSectors=new();
     private readonly HashSet<EnemyKind> _coopSmokeBosses=new();
     private int _coopSmokeExpected=6;
+    private bool _coopFeatureChecksPassed;
     private string? _coopSmokeLog;
     private long _coopSmokeStarted;
     private int _coopSmokeTicks;
@@ -30,6 +31,7 @@ public sealed partial class IronNebulaGame
         _coopSmokeExpected=int.Parse(Value("--coop-players","6"));
         int port=int.Parse(Value("--coop-port",CoopWire.DefaultPort.ToString()));
         _coopSmokeStarted=Environment.TickCount64;
+        if(_coopSmoke) _coopFeatureChecksPassed=VerifyDesktopGameplayRules();
         if(_coopVisualTest) { _coopMenu=true;_coopClient=new CoopClient("127.0.0.1",port,"RENDER CLIENT"); }
         else HostCoop(port);
     }
@@ -73,15 +75,32 @@ public sealed partial class IronNebulaGame
         if(!_coopSmoke || _mode!=GameMode.Victory) return;
         if(_coopSmokeFinishAt==0) _coopSmokeFinishAt=Environment.TickCount64;
         if(Environment.TickCount64-_coopSmokeFinishAt<500) return;
-        WriteCoopSmokeResult(_party.Count==_coopSmokeExpected && _coopSmokeOwners.Count>=_coopSmokeExpected && _coopSmokeWeapons.Count==5 &&
+        WriteCoopSmokeResult(_coopFeatureChecksPassed && _party.Count==_coopSmokeExpected && _coopSmokeOwners.Count>=_coopSmokeExpected && _coopSmokeWeapons.Count==5 &&
             _party.Values.All(p=>p.DamageDealt>0) && _coopSmokeSectors.Count==3 && _coopSmokeBosses.Count==2 && _coopSmokeShopTicks>1,
-            "Completed actual game simulation and all-ready shop/victory barrier");Exit();
+            "Completed gameplay-rule checks, actual game simulation and all-ready shop/victory barrier");Exit();
+    }
+    private static bool VerifyDesktopGameplayRules()
+    {
+        var boss=new Enemy { Kind=EnemyKind.Sentinel };
+        boss.BossPhase=GameplayRules.BossCombatPhaseAt(0f);
+        bool attack=boss.BossPhase==BossCombatPhase.Attack&&!GameplayRules.IsBossShielded(boss);
+        boss.BossPhase=GameplayRules.BossCombatPhaseAt(4.5f);
+        bool shield=boss.BossPhase==BossCombatPhase.Shield&&GameplayRules.IsBossShielded(boss);
+        boss.BossPhase=GameplayRules.BossCombatPhaseAt(6.5f);
+        bool damage=boss.BossPhase==BossCombatPhase.Damage&&!GameplayRules.IsBossShielded(boss)&&
+            GameplayRules.ResolveBossDamage(boss,1)==2;
+        bool party=Math.Abs(GameplayRules.PartyEnemyHealthMultiplier(6)-1.4f)<.001f&&
+            Math.Abs(GameplayRules.PartyEnemyFireRateMultiplier(6)-1.125f)<.001f&&
+            Math.Abs(GameplayRules.PartyPickupMultiplier(6)-1.2f)<.001f&&
+            GameplayRules.ScalePickupUnits(1,6)==2&&GameplayRules.ScalePickupUnits(2,6)==3;
+        return attack&&shield&&damage&&party;
     }
     private void WriteCoopSmokeResult(bool success,string reason)
     {
         if(_coopSmokeLog==null) return;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_coopSmokeLog))!);
         File.WriteAllText(_coopSmokeLog,JsonSerializer.Serialize(new { success,reason,ticks=_coopSmokeTicks,
+            gameplayRules=_coopFeatureChecksPassed,
             players=_party.Count,owners=_coopSmokeOwners.Order().ToArray(),weapons=_coopSmokeWeapons.Select(w=>w.ToString()).ToArray(),
             damage=_party.Values.ToDictionary(p=>p.Id,p=>p.DamageDealt),
             sectors=_coopSmokeSectors.Order().ToArray(),bosses=_coopSmokeBosses.Select(b=>b.ToString()).ToArray(),

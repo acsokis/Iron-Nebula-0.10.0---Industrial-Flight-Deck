@@ -5,6 +5,7 @@ namespace IronNebula;
 
 internal enum GameMode { Title, Playing, Paused, GameOver, Victory, Shop }
 internal enum DifficultyMode { Easy=0, Normal=1, Hard=2 }
+internal enum BossCombatPhase { Attack, Shield, Damage }
 internal enum EnemyKind { Scout, Interceptor, Heavy, Turret, Warden, Sentinel,
     RiftDart, RiftWisp, RiftMauler, RiftPrism, RiftStalker,
     RiftGuardian, RiftColossus, RiftBossTurret,
@@ -61,6 +62,8 @@ internal sealed class Enemy
     public float Phase;
     public int MotionPattern;
     public int LastPhase = 1;
+    public BossCombatPhase BossPhase;
+    public float BossPhaseTimer;
     public int FireCycle;
     public float HitFlash;
     public float HitReaction; // purely visual: impact shake, never collision movement

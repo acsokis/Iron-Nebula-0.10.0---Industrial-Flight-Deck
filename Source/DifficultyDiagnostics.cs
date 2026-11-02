@@ -26,7 +26,7 @@ public sealed partial class IronNebulaGame
     private float DifficultyShotTimeFactor=>_runDifficulty switch
     {
         DifficultyMode.Easy=>1.18f,DifficultyMode.Hard=>.82f,_=>1f
-    };
+    } / GameplayRules.PartyEnemyFireRateMultiplier(CoopPartySize);
     private float DifficultyProjectileSpeed=>_runDifficulty switch
     {
         DifficultyMode.Easy=>.88f,DifficultyMode.Hard=>1.12f,_=>1f
@@ -39,11 +39,14 @@ public sealed partial class IronNebulaGame
     {
         if(enemy.DifficultyApplied) return;
         enemy.DifficultyApplied=true;
-        float partyFactor=_coopHost!=null?1f+.65f*Math.Max(0,_party.Count-1):1f;
+        float partyFactor=GameplayRules.PartyEnemyHealthMultiplier(CoopPartySize);
         int hp=Math.Max(1,(int)MathF.Ceiling(enemy.MaxHealth*DifficultyHpFactor*partyFactor));
         enemy.Health=hp;enemy.MaxHealth=hp;
         // Cooldown scales continuously in the enemy update loops, including phase changes.
     }
+    private int CoopPartySize=>_coopHost==null?1:Math.Clamp(_party.Count,1,6);
+    private float CoopPickupMultiplier=>GameplayRules.PartyPickupMultiplier(CoopPartySize);
+    private int ScaleCoopPickupUnits(int units)=>GameplayRules.ScalePickupUnits(units,CoopPartySize);
     private void CountRenderedFrame(GameTime time)
     {
         _performanceSeconds+=Math.Max(0,time.ElapsedGameTime.TotalSeconds);

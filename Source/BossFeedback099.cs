@@ -47,6 +47,33 @@ public sealed partial class IronNebulaGame
            e.Kind==EnemyKind.InfernoGuardian || e.Kind==EnemyKind.InfernoTitan ||
            e.Kind==EnemyKind.RiftBossTurret || e.Kind==EnemyKind.InfernoBossTurret;
 
+    private void AdvanceBossCombatPhase(Enemy enemy,float dt)
+    {
+        if(!GameplayRules.IsCombatBoss(enemy.Kind)) return;
+        enemy.BossPhaseTimer+=dt;
+        BossCombatPhase next=GameplayRules.BossCombatPhaseAt(enemy.BossPhaseTimer);
+        if(next==enemy.BossPhase) return;
+        enemy.BossPhase=next;
+        if(next==BossCombatPhase.Attack) enemy.FireTimer=MathF.Max(enemy.FireTimer,.7f);
+        _audio?.Effect("boss_phase",.22f,next==BossCombatPhase.Shield?.76f:1.04f);
+        Alert(next switch
+        {
+            BossCombatPhase.Shield=>"BOSS SHIELD PHASE",
+            BossCombatPhase.Damage=>"BOSS DAMAGE WINDOW",
+            _=>"BOSS ATTACK PHASE"
+        },1.2f);
+    }
+
+    private void DrawBossCombatShield(Enemy enemy,Vector2 position)
+    {
+        if(enemy.BossPhase!=BossCombatPhase.Shield||_shieldRing==null) return;
+        float pulse=1f+.035f*MathF.Sin(enemy.Age*8f);
+        float scale=enemy.Radius*2.35f/Math.Max(1,_shieldRing.Width)*pulse;
+        _batch.Draw(_shieldRing,position,null,BossAccent(enemy.Kind)*.70f,0f,
+            new Vector2(_shieldRing.Width*.5f,_shieldRing.Height*.5f),scale,
+            SpriteEffects.None,0f);
+    }
+
     private static Color BossAccent(EnemyKind kind)
         => kind switch
         {

@@ -39,21 +39,44 @@ func run_checks() -> void:
 	var arena = scene.instantiate()
 	root.add_child(arena)
 	await process_frame
+	check(arena.menu_overlay.visible and paused, "Flight deck opens in a paused, interactive menu")
+	check(arena.flight_button.text == "ENTER FLIGHT" and arena.exit_button.text == "EXIT PREVIEW", "Flight deck provides launch and exit actions")
+	arena.begin_flight()
+	check(not paused and not arena.menu_overlay.visible, "Entering flight resumes the simulation")
 	check(arena.pilot is CharacterBody3D, "Flight uses a real 3D physics body")
 	check(arena.pilot.has_node("VisualSlot"), "Visual model stays separate from collision")
 	var pilot_slot = arena.pilot.get_node("VisualSlot")
 	check(pilot_slot.has_node("MetallicFrame"), "Pilot hull has a texture-masked metallic frame")
 	if pilot_slot.has_node("MetallicFrame"):
 		var frame := pilot_slot.get_node("MetallicFrame") as MeshInstance3D
-		var frame_material := frame.material_override as StandardMaterial3D
+		var frame_material := frame.material_override as ShaderMaterial
 		var hull := pilot_slot.get_node("HullSprite") as MeshInstance3D
 		var frame_mesh := frame.mesh as QuadMesh
-		check(not frame.visible and frame.position.z < hull.position.z and frame_material.metallic > 0.9, "Undamaged hull hides its metallic frame")
-		check(frame_material.albedo_texture == arena.art("ship") and frame_mesh.size.is_equal_approx(Vector2(7.1, 2.68) * 1.08), "Metallic backing follows the hull texture and silhouette")
+		check(not frame.visible and frame.position.z < hull.position.z, "Undamaged hull hides its metallic frame")
+		check(frame_material != null and frame_material.shader == load("res://Godot/industrial_hull.gdshader"), "Metallic backing uses its panelled alloy shader")
+		check(frame_mesh.size.is_equal_approx(Vector2(7.1, 2.68) * 1.14), "Metallic backing follows and slightly extends beyond the hull silhouette")
 		pilot_slot.set_damage_fraction(0.75)
 		check(frame.visible, "Metallic frame appears as soon as the hull is damaged")
 		pilot_slot.set_damage_fraction(1.0)
 		check(not frame.visible, "Repair hides the metallic frame again")
+	check(arena.background_layers.layer_count() == 4 and arena.backdrops.size() == 3, "Sector scenery has four parallax depths and three panorama tiles")
+	check(arena.space_world.orbiters.size() >= 3, "Procedural space includes a station and physical voxel obstacles")
+	var asteroid: RigidBody3D
+	for body in arena.space_world.orbiters:
+		if body.has_meta("voxel_cells") and not body.get_meta("station", false) and not body.get_meta("voxel_debris", false):
+			asteroid = body
+			break
+	check(asteroid != null, "A shootable voxel asteroid is present")
+	if asteroid != null:
+		var health_before: int = asteroid.get_meta("health")
+		var cells_before: int = asteroid.get_meta("voxel_cells").size()
+		var rock_art := asteroid.get_node_or_null("RockArt") as Sprite3D
+		check(rock_art != null, "Asteroid voxel body carries the original detailed rock artwork")
+		arena.space_world.damage_target(asteroid, asteroid.global_position, 1, Vector3.LEFT)
+		check(int(asteroid.get_meta("health")) == health_before - 1, "Asteroid hits reduce physical-object health")
+		check(asteroid.get_meta("voxel_cells").size() < cells_before, "Asteroid hits visibly remove voxel cells")
+		if rock_art != null:
+			check(rock_art.modulate.a < 0.94, "Asteroid artwork erodes visibly as its voxel hull is damaged")
 	check(arena.boss_phase_at(0.0) == "ATTACK" and arena.boss_phase_at(6.0) == "SHIELD" and arena.boss_phase_at(9.0) == "DAMAGE", "Bosses cycle through attack, shield and damage phases")
 	check(arena.boss_damage_amount(2, "SHIELD") == 0 and arena.boss_damage_amount(2, "DAMAGE") == 3, "Boss shield blocks shots and damage windows amplify hits")
 	arena.party_size = 6
@@ -113,18 +136,42 @@ func run_checks() -> void:
 		enemy_slot.set_damage_fraction(0.5)
 		check(enemy_slot.get_node("MetallicFrame").visible, "Enemy metallic frame appears when damage begins")
 		arena.enemies[0].position = arena.pilot.position + Vector3(8, 0, 0)
+	for body in arena.space_world.orbiters:
+		body.position = Vector3(0, 45, 0)
+		body.collision_layer = 0
+	for enemy in arena.enemies:
+		enemy.collision_layer = 0
+	if asteroid != null:
+		asteroid.position = arena.pilot.position + Vector3(13, 0, 0)
+		asteroid.linear_velocity = Vector3.ZERO
+		asteroid.collision_layer = 4
+	await physics_frame
+	var asteroid_health_before_shots: int = int(asteroid.get_meta("health")) if asteroid != null else 0
+	var asteroid_cells_before_shots: int = asteroid.get_meta("voxel_cells").size() if asteroid != null else 0
 	key(KEY_SPACE, true)
-	for i in range(150):
+	for i in range(36):
 		await physics_frame
 	key(KEY_SPACE, false)
+	if asteroid != null:
+		check(int(asteroid.get_meta("health")) < asteroid_health_before_shots, "A swept player shot damages a physical asteroid")
+		check(asteroid.get_meta("voxel_cells").size() < asteroid_cells_before_shots, "Player fire removes asteroid voxels")
+	if not arena.enemies.is_empty():
+		var ray_target: CharacterBody3D = arena.enemies[0]
+		ray_target.collision_layer = 2
+		key(KEY_SPACE, true)
+		for i in range(90):
+			if is_instance_valid(ray_target) and not ray_target.is_queued_for_deletion():
+				ray_target.position = arena.pilot.position + Vector3(8, 0, 0)
+			await physics_frame
+		key(KEY_SPACE, false)
 	check(arena.shots.size() > 0, "Firing creates live projectiles")
 	check(arena.shots.size() <= arena.SHOT_LIMIT, "Projectile storage remains bounded")
-	check(arena.score > 0, "Swept 3D projectile queries hit spawned enemies")
+	check(arena.score > 0, "Swept 3D projectile queries hit spawned enemies (score %d, live shots %d)" % [arena.score, arena.shots.size()])
 	check(arena.projectile_mesh.multimesh.visible_instance_count == arena.shots.size(), "GPU batch matches live projectile count")
 	for sector in range(3):
 		arena.set_sector(sector)
 		await process_frame
-		check(arena.sector == sector and arena.backdrops.size() == 3, "Every sector retains three endless tiles")
+		check(arena.sector == sector and arena.backdrops.size() == 3 and arena.background_layers.sector == sector and arena.space_world.sector == sector, "Every sector updates its panorama and world palette")
 	var model := Node3D.new()
 	model.name = "ImportedModel"
 	var packed := PackedScene.new()
@@ -143,7 +190,7 @@ func run_checks() -> void:
 	check(arena.pilot.position.x < 23, "Solid world boundaries stop the pilot without transform clamping")
 	check(not arena.spawn_is_clear(arena.pilot.position, Vector2(7.1, 2.68)), "Spawner rejects occupied full-body volume")
 	if failures.is_empty():
-		print("PASS: %d Godot checks (themed loading, five weapons, metallic hull frames, physics hits, GPU bounds and model replacement)" % check_count)
+		print("PASS: %d Godot checks (loading, menu, parallax, voxel damage, weapons, metallic hull frames, physics and model replacement)" % check_count)
 	else:
 		printerr("FAIL: %d of %d Godot checks failed" % [failures.size(), check_count])
 	arena.queue_free()

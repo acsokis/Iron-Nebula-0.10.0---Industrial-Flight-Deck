@@ -115,8 +115,8 @@ public sealed partial class IronNebulaGame
                 SpawnInfernoEnemy(EnemyKind.InfernoScorch,new Vector2(ViewWidth+245,795),1.0f,795);
             }
         }
-        enemy.FireTimer-=dt/DifficultyShotTimeFactor;
-        if(enemy.Position.X<=anchor && enemy.FireTimer<=0f)
+        if(enemy.BossPhase==BossCombatPhase.Attack) enemy.FireTimer-=dt/DifficultyShotTimeFactor;
+        if(enemy.BossPhase==BossCombatPhase.Attack && enemy.Position.X<=anchor && enemy.FireTimer<=0f)
         {
             FireInfernoBoss(enemy,phase);
             enemy.FireTimer=titan?

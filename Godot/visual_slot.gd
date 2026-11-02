@@ -1,7 +1,9 @@
 class_name NebulaVisualSlot
 extends Node3D
 
+const INDUSTRIAL_HULL_SHADER = preload("res://Godot/industrial_hull.gdshader")
 var metallic_frame: MeshInstance3D
+var frame_material: ShaderMaterial
 
 ## Replace artwork with an imported .glb/.gltf scene without changing the body,
 ## collision, flight plane or weapon mounts owned by its parent.
@@ -16,22 +18,18 @@ func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, m
 		self.metallic_frame = MeshInstance3D.new()
 		self.metallic_frame.name = "MetallicFrame"
 		var frame_mesh := QuadMesh.new()
-		frame_mesh.size = dimensions * 1.08
+		frame_mesh.size = dimensions * 1.14
 		self.metallic_frame.mesh = frame_mesh
-		self.metallic_frame.position.z = -0.06
-		var frame_material := StandardMaterial3D.new()
-		frame_material.albedo_texture = art
-		frame_material.albedo_color = Color("9ab0bd")
-		frame_material.metallic = 0.94
-		frame_material.roughness = 0.28
-		frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		frame_material.alpha_scissor_threshold = 0.025
-		frame_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		frame_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+		self.metallic_frame.position.z = -0.09
+		self.frame_material = ShaderMaterial.new()
+		self.frame_material.shader = INDUSTRIAL_HULL_SHADER
+		self.frame_material.set_shader_parameter("hull_mask", art)
+		self.frame_material.set_shader_parameter("alloy_color", Color("9fb2bb"))
+		self.frame_material.set_shader_parameter("signal_color", Color("45dfff"))
+		self.frame_material.set_shader_parameter("damage", 0.0)
 		if mirror:
-			frame_material.uv1_scale.x = -1
-			frame_material.uv1_offset.x = 1
-		self.metallic_frame.material_override = frame_material
+			self.frame_material.set_shader_parameter("mirror_u", true)
+		self.metallic_frame.material_override = self.frame_material
 		self.metallic_frame.visible = false
 		add_child(self.metallic_frame)
 	var quad := MeshInstance3D.new()
@@ -41,7 +39,7 @@ func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, m
 	quad.mesh = mesh
 	var material := StandardMaterial3D.new()
 	material.albedo_texture = art
-	material.albedo_color = Color.BLACK
+	material.albedo_color = Color.WHITE
 	material.emission_enabled = true
 	material.emission = Color.WHITE
 	material.emission_texture = art
@@ -58,4 +56,6 @@ func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, m
 
 func set_damage_fraction(fraction: float) -> void:
 	if metallic_frame != null:
-		metallic_frame.visible = fraction < 1.0
+		var damage := clampf(1.0 - fraction, 0.0, 1.0)
+		metallic_frame.visible = damage > 0.0
+		frame_material.set_shader_parameter("damage", damage)

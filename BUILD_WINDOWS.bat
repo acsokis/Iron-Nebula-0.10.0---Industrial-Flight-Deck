@@ -1,17 +1,17 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title IRON NEBULA Alpha 0.9.2 - Build
+title IRON NEBULA - Build
 set "LOG=%~dp0BUILD_REPORT.txt"
 
->"%LOG%" echo IRON NEBULA Alpha 0.9.2 - Build report
+>"%LOG%" echo IRON NEBULA - Windows build report
 >>"%LOG%" echo Location: %CD%
 >>"%LOG%" echo.
 
 where dotnet >nul 2>&1
 if errorlevel 1 (
     echo HIBA: Nem talalhato a .NET SDK.
-    echo Telepitsd a .NET 8 SDK x64 verziot: https://dotnet.microsoft.com/download/dotnet/8.0
+    echo Telepitsd a .NET 10 SDK x64 verziot: https://dotnet.microsoft.com/download/dotnet/10.0
     >>"%LOG%" echo ERROR: dotnet not found in PATH.
     pause
     exit /b 1
@@ -21,7 +21,7 @@ echo [1/3] .NET kornyezet ellenorzese...
 dotnet --list-sdks >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
 
-echo [2/3] MonoGame NuGet csomag letoltese / visszaallitasa (net8.0-windows)...
+echo [2/3] MonoGame NuGet csomag letoltese / visszaallitasa (net10.0-windows)...
 echo Elsore internetkapcsolat szukseges.
 dotnet restore IronNebula.csproj --force --no-cache --verbosity normal >>"%LOG%" 2>&1
 if errorlevel 1 goto :restorefailed

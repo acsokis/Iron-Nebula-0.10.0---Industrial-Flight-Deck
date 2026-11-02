@@ -39,6 +39,9 @@ func _initialize() -> void:
 	var visual_script = load("res://Godot/visual_slot.gd")
 	var slot = visual_script.new()
 	slot.configure(load("res://Web/public/assets/ship.webp"), Vector2(7.1, 2.68), null, false, true)
+	check(slot.frame_material is ShaderMaterial, "Metallic backing uses its dedicated industrial shader")
+	if slot.frame_material is ShaderMaterial:
+		check(is_equal_approx(slot.frame_material.get_shader_parameter("damage"), 0.0), "Metallic backing initializes without damage glow")
 	check(not slot.metallic_frame.visible, "Undamaged hull hides its metallic frame")
 	slot.set_damage_fraction(0.75)
 	check(slot.metallic_frame.visible, "Metallic frame appears after damage begins")

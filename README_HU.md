@@ -1,30 +1,43 @@
-# IRON NEBULA — fejlesztési áttekintés
+# Iron Nebula
 
-Az Iron Nebula egy sci-fi, oldalnézetes arcade shooter három külön fejlesztési
-változattal: Windows desktop, WebGL2 böngészős kiadás és kísérleti Godot-preview.
-A változatok még nem teljesen paritásosak; a Web/Godot fejlesztési állapot és a
-következő lépések az [AI handoff fájlban](AI_HANDOFF.md) követhetők.
+Az Iron Nebula önálló, sci-fi arcade játékprojekt három különálló változattal:
+Windows, böngésző és Godot. A változatok fejlesztési területe és ellenőrzött
+funkciói eltérnek; a teljes platformparitás még nem igazolt.
 
-## Jelenlegi fejlesztés
+## Platformok
 
-- A sérülés kezdetétől, a hajó textúrájának alfáját követő metallic frame jelenik
-  meg; teljes javításnál eltűnik.
-- A bossok támadás-, pajzs- és sebzésfázisokat váltanak. A pajzs blokkolja a
-  találatokat, a sebzésfázis nagyobb sebzést enged.
-- Co-opban a játékosszám enyhén növeli az ellenségek erejét. Öt-hat játékosnál
-  az egészség- és pajzsfelvétel, valamint a kreditek egy további egységet adnak.
-- A Web és Godot változat célzott automatikus ellenőrzései átmentek. A Windows
-  desktop megfelelő funkciói és a kiadás még nincsenek befejezve.
+- **Windows:** .NET 10-alapú MonoGame asztali játék kampánnyal,
+  kontrollerkezeléssel, sérülésre reagáló hajómegjelenítéssel és fázisos
+  boss-harcokkal. A kiadási ellenőrzés állapotát az [AI-átadás](AI_HANDOFF.md)
+  rögzíti.
+- **Böngésző:** WebGL 2 megjelenítés, egyjátékos mód, választható online co-op
+  és telefonos vezérlés. Részletek a [webes útmutatóban](Web/README.md).
+- **Godot:** helyben tesztelhető, 2.5D grafikai és fizikai preview; nem váltja ki
+  a teljes Windows- vagy böngészős játékot. Lásd a
+  [Godot-útmutatót](Godot/README.md).
 
-## Fejlesztés és ellenőrzés
+A közös vizuális irány az eredeti szektorgrafikára, olvasható harci effektekre
+és sérülésre reagáló hajómegjelenítésre épül. A Godot-preview többrétegű
+hátteret, ipari stílusú repülési menüt és fizikailag sérülő űrobjektumokat kap.
+Ez nem jelent automatikus funkcióparitást a platformok között.
 
-- Web: `cd Web`, `npm.cmd test`, `npm.cmd run build`,
-  `npm.cmd run release:verify`.
-- Godot: a projektgyökérbeli `RUN_GODOT_PREVIEW.bat`; célzott teszt:
-  `Godot/tests/gameplay_checks.gd`.
-- Windows: a desktop-release ág .NET 10-et céloz. Release-buildet és a
-  platformparitást az átadási fájl állapotának megfelelően kell befejezni.
+## Fejlesztés
 
-Az AI-k közötti folytatáshoz minden munkamenet elején olvasd el, a végén pedig
-frissítsd az [AI_HANDOFF.md](AI_HANDOFF.md) fájlt. Felhasználó által
-visszavont szerkesztést ne állíts vissza engedély nélkül.
+- Windows-fordítás: a .NET 10 SDK és a Windows build-eszközök szükségesek; a
+  `BUILD_WINDOWS.bat` fordít, a `PUBLISH_WINDOWS.bat` pedig kompakt kiadási
+  ZIP-et készít.
+- Böngésző: lásd a [Web útmutatót](Web/README.md).
+- Godot: a gyökérbeli `RUN_GODOT_PREVIEW.bat` indítja a helyi preview-t.
+
+## Projektállapot és dokumentáció
+
+- [AI-átadás és ellenőrzött állapot](AI_HANDOFF.md)
+- [Kiadási ütemterv](ROADMAP.md)
+- [Projektfrissítések](CHANGELOG.md)
+- [Kiadás előtti ellenőrzőlista](TEST_CHECKLIST_HU.md)
+- [Kontroller-útmutató](CONTROLLER_SUPPORT.md)
+- [Co-op-útmutató](COOP_SUPPORT.md)
+
+A Windows-, böngésző- és Godot-változat külön mentést és hálózati állapotot
+használ; az adatok nem vihetők át automatikusan. A szükséges külső
+licenc- és attribúciós tájékoztatók a kapcsolódó projektfájlok mellett maradnak.

@@ -13,6 +13,19 @@ Check(!CoopWire.Valid(new CoopInput(1,float.NaN,0)),"Reject NaN input");
 Check(!CoopWire.Valid(new CoopInput(1,2,0)),"Reject speed injection");
 Check(!CoopWire.Valid(new CoopInput(1,0,0,HasTarget:true,TargetX:100000)),"Reject out-of-world mouse target");
 Check(CoopWire.Valid(new CoopInput(1,1,1,true,true,1,true)),"Valid diagonal and actions");
+var boss=new Enemy { Kind=EnemyKind.Sentinel };
+boss.BossPhase=GameplayRules.BossCombatPhaseAt(0f);
+Check(boss.BossPhase==BossCombatPhase.Attack&&!GameplayRules.IsBossShielded(boss),"Boss attack phase");
+boss.BossPhase=GameplayRules.BossCombatPhaseAt(4.5f);
+Check(boss.BossPhase==BossCombatPhase.Shield&&GameplayRules.IsBossShielded(boss),"Boss shield phase");
+boss.BossPhase=GameplayRules.BossCombatPhaseAt(6.5f);
+Check(boss.BossPhase==BossCombatPhase.Damage&&!GameplayRules.IsBossShielded(boss)&&
+    GameplayRules.ResolveBossDamage(boss,1)==2,"Boss damage window");
+Check(Math.Abs(GameplayRules.PartyEnemyHealthMultiplier(6)-1.4f)<.001f&&
+    Math.Abs(GameplayRules.PartyEnemyFireRateMultiplier(6)-1.125f)<.001f&&
+    Math.Abs(GameplayRules.PartyPickupMultiplier(6)-1.2f)<.001f,"Mild six-player scaling");
+Check(GameplayRules.ScalePickupUnits(1,6)==2&&GameplayRules.ScalePickupUnits(2,6)==3,
+    "Health and shield pickup scaling");
 using var host=new CoopHost(0,loopbackOnly:true);
 var guests=Enumerable.Range(1,5).Select(i=>new CoopClient("127.0.0.1",host.Port,"PILOT "+i)).ToArray();
 try

@@ -1,97 +1,43 @@
-# IRON NEBULA
+# Iron Nebula
 
-**Experimental Godot NVIDIA engine branch:** see [build, controls and parity status](Godot/README.md). This is a separately validated 2.5D foundation with Jolt, procedural solid space objects, optional future 3D visual models, requested-by-default RTX and a baked VoxelGI raster fallback. It does not yet replace the complete native/browser campaign and co-op implementations.
+Iron Nebula is an independent science-fiction arcade project maintained across
+Windows, browser and Godot implementations. Each platform has a distinct scope;
+feature parity and release readiness are tracked separately.
 
-**Browser edition 0.10.0 (development):** a roguelike bullet-hell space arcade adaptation with
-Endless Orbit, the native side-view ship/cockpit/effect/pickup artwork, scrolling
-parallax backgrounds and optional default-on tethered pointer flight. Touch drag
-continuously steers the ship. The original desktop soundtrack is available along
-with original synthesized Atari-style effects and optional chiptune music.
-About credits name both contributors and their roles. Up to six players connect over
-WebRTC; co-op enemy strength scales mildly with party size and full-wing pickups
-provide an extra unit. Bosses cycle through attack, shield and damage windows.
-Phone controllers, automatic Xbox/PlayStation button icons, dynamic lighting, 2D GI,
-bloom, fog, smoke and synthesized chip audio are included. HDR lighting and experimental
-HDR display output are capability-gated. See [browser setup and controls](Web/README.md)
-and the [release security audit](Web/SECURITY_AUDIT.md). Browser rooms and saves are
-separate from the native Windows edition. GitHub Pages deployment is included.
-This development build is not yet a published release.
+## Platform overview
 
-**[Play the browser edition](https://acsokis.github.io/Iron_Nebula/)** — published
-from the contributor fork. Choose **Host wing / Join wing** for browser co-op or
-**Phone pad** to pair a phone. See the browser guide for NAT/TURN and HDR limits.
+- **Windows:** .NET 10 MonoGame desktop application with campaign progression,
+  controller support, damage-responsive hull presentation and phased boss
+  encounters. Release validation is recorded in the [AI handoff](AI_HANDOFF.md).
+- **Browser:** WebGL 2 game with solo play, optional online co-op and phone
+  control. See the [browser guide](Web/README.md).
+- **Godot:** local 2.5D engine preview for visual and physics evaluation. It is
+  not a replacement for the complete desktop or browser game. See the
+  [Godot preview guide](Godot/README.md).
 
-Xbox and native PS5 DualSense support: see [Controller support](CONTROLLER_SUPPORT.md)
-for controls, adaptive triggers, USB haptics, and validation status. Bluetooth HD
-haptics is an experimental option and is **disabled by default**.
+The shared visual direction includes original sector art, readable combat
+effects and damage-responsive ship presentation. The Godot preview is developing
+layered scenery, an industrial flight deck and destructible physical space
+objects. These features are not claims of cross-platform parity.
 
-**New: playable 2–6-player Online/LAN co-op.** Open **ONLINE / LAN CO-OP** in the
-main menu, host a party, then share the displayed `address:port/roomcode` with guests.
-See [Co-op setup and validation](COOP_SUPPORT.md) for controls, Internet connectivity
-requirements and the first-alpha limitations. Smooth mouse flight and controller
-icons remain supported. Co-op does not overwrite solo saves/high scores.
+## Build and run
 
-**Windows desktop:** MonoGame WindowsDX; the release-hardening branch targets .NET 10.
-The Web/Godot gameplay work is not yet ported to the desktop build; see
-[AI handoff](AI_HANDOFF.md) for the current cross-platform status.
+- Windows development requires the .NET 10 SDK and Windows build tools. Run
+  `BUILD_WINDOWS.bat`; `PUBLISH_WINDOWS.bat` creates the compact release ZIP.
+- Browser development uses the commands in [Web/README.md](Web/README.md).
+- Godot preview uses the root launcher, `RUN_GODOT_PREVIEW.bat`. Local engine
+  build and verification instructions are in [Godot/README.md](Godot/README.md).
 
-A saját fejlesztésű, vízszintesen scrollozó sci-fi shoot ’em up játék. Három szektor, öt váltható és fejleszthető primary weapon, minibossok és főbossok, szektorvégi shop, mentés/Continue, billentyűzet-, egér- és Xbox-kompatibilis kontrollerkezelés.
+## Project records
 
-> **Prior baseline validation:** Windows Release build and controller/loopback checks passed. A real
-> game host plus five client processes exercised six ships, all weapons, all three
-> sectors and a rendered guest. Physical multi-PC Internet/LAN testing and a full
-> human campaign playthrough remain pending. This 0.10.0 gameplay work has not
-> yet been ported to or validated on Windows. See [details](COOP_SUPPORT.md).
+- [AI handoff and verified state](AI_HANDOFF.md)
+- [Release roadmap](ROADMAP.md)
+- [Project updates](CHANGELOG.md)
+- [Pre-release verification checklist](TEST_CHECKLIST_HU.md)
+- [Controller guide](CONTROLLER_SUPPORT.md)
+- [Co-op guide](COOP_SUPPORT.md)
+- [Security review summary](Web/SECURITY_AUDIT.md)
 
-## Indítás Windowson
-
-1. Telepítsd a **.NET 10 SDK-t**.
-2. A teljes forrásprojekt gyökeréből futtasd a `BUILD_WINDOWS.bat` fájlt.
-3. A kiadáshoz használd a `PUBLISH_WINDOWS.bat` parancsfájlt.
-4. A szükséges képi és audioasseteknek az `Assets/` mappában kell lenniük.
-
-The Windows release-hardening branch targets .NET 10; its main project file is
-`IronNebula.csproj`. See the [handoff](AI_HANDOFF.md) before continuing platform
-parity work.
-
-## Játékmenet
-
-- **Sector 01 – Outer Frontier:** HD űrháttér, normál ellenségek, Warden miniboss, Sentinel főboss.
-- **Sector 02 – The Rift:** lila–zöld űrvilág, homályos mélységi roncsok, Guardian miniboss és Colossus főboss.
-- **Sector 03 – Inferno Belt:** három vörös–narancs pályaszakasz, új flotta, Inferno Guardian és Inferno Titan.
-- **Primary weapons:** Pulse (alapfegyver), Lance, Arc, Gatling, Beam; fegyverfejlesztés 1–7 szintig. Az új fegyvereket kreditekért kell feloldani.
-- **Gazdaság:** kreditpickupok, szektorvégi eredményösszesítő, három shopkategória, hajó- és fegyverfejlesztések; Sector 01 kreditbevételének plafonja 900 CR.
-- **Nehézség:** Easy / Normal / Hard; New Game indításakor választható.
-- **Kijelző:** nagy betűk, F1 Help, F10 diagnosztika, testreszabható SFX/music hangerő.
-- **Megjelenítés:** 16:9 / 16:10, 720p–4K választható módok, MSAA, lövedékglow, találat utáni rövid blur/rázkódás, ablakméret monitorhoz illesztése.
-- **Irányítás:** billentyűzet, egér (hajó közvetlenül a kurzornál), kontroller; a menük egérrel is használhatók.
-
-## Projektstruktúra
-
-```text
-Source/             C# játéklogika, UI, mentés, audio, grafika
-Assets/HD/          űrhajók, hátterek, sprite-ok
-Assets/Rift/        Rift-szektor, DOF drifters
-Assets/Inferno/     Inferno-szektor, hajók és bossok
-Assets/FX/          sérülés, robbanás, fény- és harci effektek
-Assets/UI/          HUD és menüelemek
-Assets/Audio/       zene és hanghatások
-Tools/              ellenőrző segédprogramok
-BUILD_WINDOWS.bat   Windows forrásfordítás
-PUBLISH_WINDOWS.bat Windows publikálás
-CHANGELOG.md        változástörténet
-ROADMAP.md          további terv
-DEVELOPMENT_HISTORY.md teljes fejlesztési idővonal
-```
-
-## Fontos megjegyzés a zenei jogokról
-
-A *Propulsive Peak* felhasználó által biztosított asztali hangsáv. A webes kiadás a felhasználó kifejezett kérésére tartalmazza, rögzített SHA256-ellenőrzéssel. A zeneszerző és a harmadik féltől származó licenc nem lett függetlenül igazolva; a projekthez nem társítunk kitalált Creative Commons vagy royalty-free engedélyt.
-
-## Dokumentáció
-
-- [Teljes változástörténet](CHANGELOG.md)
-- [Mérföldkövek és történet](DEVELOPMENT_HISTORY.md)
-- [Roadmap](ROADMAP.md)
-
-A fejlesztés közvetlenül a Git-repó forrásfájljain történik. Codexben ellenőrizhető módosításokkal, tesztekkel, commitokkal és CI-közzététellel dolgozunk; köztes forráscsomagokat nem készítünk.
+The browser, Windows and Godot builds use separate storage and networking
+contracts. Do not assume that a save, room or feature is transferable between
+platforms. Required third-party notices accompany the relevant project assets.

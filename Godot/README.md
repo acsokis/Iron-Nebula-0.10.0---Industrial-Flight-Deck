@@ -1,66 +1,63 @@
-# Godot NVIDIA engine preview
+# Godot preview
 
-This branch contains an experimental playable **2.5D migration foundation**, not a replacement for the existing campaign or co-op builds. There is no new product release/version bump for this step.
+The Godot build is a local 2.5D visual and physics preview. It is not a replacement
+for the complete Windows campaign or browser co-op implementation.
 
-## Build and run
+## Run and build
 
-Requires Windows, Python, Git, Visual Studio C++ tools and a Windows SDK. From the repository root:
-
-```powershell
-./Godot/Build-Engine.ps1
-./RUN_GODOT_PREVIEW.bat
-./RUN_GODOT_PREVIEW.bat --editor
-```
-
-The root launcher starts the playable preview by default and forwards additional
-Godot command-line arguments. The engine is built once and kept under the ignored
-`.engine/` directory; run the build script if the launcher reports it missing.
-The helper checks out the official NVIDIA source at the immutable revision in [engine.json](./engine.json), installs pinned SCons into a project-local virtual environment, and builds the editor. It does not install or invoke any AI service. Engine sources, intermediate objects and executables stay ignored; no source ZIP or patch workflow is used. This minimal source build omits optional AccessKit and ANGLE dependencies; it does not establish accessibility readiness for a release.
-
-The preview opens with a dark, cyan-accented loading screen. It loads the arena,
-its textures and the baked GI resource on worker threads, then renders several
-frames under the loading overlay so first-use graphics pipelines can initialize.
-The game window opens centered at 1280x720; the in-game status HUD uses the same
-high-contrast palette.
-
-Create a one-download Windows preview release with
-`PUBLISH_GODOT_PREVIEW.bat`. It writes
-`dist/IronNebula-Godot-win-x64.zip`, containing only the optimized game
-executable and its Godot resource pack; engine sources, editor and import
-cache are not included. The separate PCK avoids the embedded-pack startup
-failure observed with this experimental NVIDIA engine fork.
-
-Use `--rendering-method gl_compatibility` on hardware without Forward+ support. The browser game remains the existing WebGL2 implementation; this preview does not export hardware RTX to the browser.
-
-Import assets and run the synchronous headless gameplay regression check:
+From the repository root:
 
 ```powershell
-./.engine/godot-nvidia/bin/godot.windows.editor.x86_64.exe --headless --path . --editor --import
-./.engine/godot-nvidia/bin/godot.windows.editor.x86_64.exe --headless --path . --script Godot/tests/gameplay_checks.gd
+.\RUN_GODOT_PREVIEW.bat
+.\RUN_GODOT_PREVIEW.bat --editor
+.\Godot\Build-Engine.ps1
 ```
 
-The separate `Godot/tests/smoke.gd` also covers loading UI, input, collision and
-model-slot behavior. Headless checks do not validate GPU rendering or physical
-controller input.
+The launcher uses the project-local engine build under the ignored `.engine/`
+directory. The build script requires Windows, Git, Python, Visual Studio C++
+tools and a Windows SDK. Do not add the engine source or import cache to release
+packages.
 
-## What this preview implements
+The application opens with a themed loading screen and then a flight-deck menu.
+Select a destination and flight profile, choose **Enter Flight**, press Escape
+to return to the menu, or choose **Exit Preview**. The project-root launcher is
+the supported local entry point.
 
-- Fixed narrow-perspective 3D camera framing an XY flight plane; Jolt 3D character bodies and swept physics queries for projectile hits. Perspective is required by the tested NVIDIA path tracer; flight remains planar.
-- A replaceable `VisualSlot` child on each body. Textured ships/enemies use an alpha-matched metallic backing frame beneath the hull; imported GLB/glTF models replace both sprite layers. Flight, collision and muzzle nodes remain independent of the visual model.
-- Shared original textures loaded directly from `Web/public/assets`. Three generated space plates scroll without mirroring. Browser/native use an edge overlap; Godot uses opaque emission-mapped periodic planes compatible with the path tracer. Scenery, physical wrecks, asteroids and a modular station occupy separate depth layers.
-- A separately seeded, bounded procedural physical field with zero-gravity Jolt rigid bodies, CCD, full-volume spawn checks and destructible near-field asteroids/wrecks. Capsule-based flight navigation checks complete swept corridors and waits when blocked; players exclude one another from collision masks.
-- WASD/left-stick flight, mouse/RT fire, five selectable primary weapons (`1`-`5`) with distinct cadence, damage, spread and projectile scale, default tethered mouse following, bounded GPU-instanced projectiles, enemy spawning and hit scoring. `T` toggles tethering, `Tab` previews the next sector, `Esc` exits.
-- The preview displays a metallic backing frame only after hull damage; its silhouette follows the source texture alpha. Bosses cycle through 6 seconds of attack, 3 seconds of shield and 4 seconds of damage. The `--party-size=1..6` preview option exercises restrained enemy scaling and larger health/shield pickups; it does not enable network co-op.
-- A requested-by-default NVIDIA path-tracing setting that activates only if the fork exposes the property and Vulkan reports ray-tracing pipeline support. The HUD reports the selected path. Raster mode is the fallback.
+## Preview scope
 
-## Rendering and parity boundaries
+- Original sector panoramas, atmospheric and star layers, and drifting foreground
+  asteroid artwork.
+- A metallic hull frame that follows the ship texture silhouette and appears
+  during hull damage.
+- A physical modular station and destructible asteroid/wreck objects. Weapon hits
+  remove voxel cells; destroyed objects release bounded debris.
+- Atlas-based impact and destruction effects, keyboard/controller movement and
+  the local weapon preview.
+- An optional NVIDIA path-tracing path with a Forward+ raster fallback.
 
-The pinned upstream source documents `Environment.pathtracing_enabled` and `RenderingDevice.SUPPORTS_RAYTRACING_PIPELINE` (feature 12). Path tracing replaces the raster path; it is not layered on top of raster GI. The initial preview explicitly selects **no denoiser**: DLSS runtime libraries are not bundled or claimed working. Noise, material support and performance still require runtime evaluation.
+This preview does not provide the full campaign, online co-op, desktop save
+compatibility or confirmed parity with the browser and Windows implementations.
+Rendering and controller support must be assessed on the target hardware.
 
-“VortexGI” and “Vortex physics” have not been identified as specific compatible plugins. Jolt is the actual configured physics backend. A real 64-subdivision VoxelGI bake for the static station is included for the Forward+ raster fallback. Rebuild it with `--path . --script Godot/bake_gi.gd` using the actual GPU renderer after changing static geometry; headless dummy rendering cannot serialize useful GI texture data. RTX uses path-traced lighting instead of this raster GI. The dynamic asteroid field is not baked into the static volume.
+## Verification
 
-Local validation: source-built NVIDIA engine, headless movement/collision/model replacement checks, and Vulkan Forward+ execution on an RTX 4080 with `RTX active=true`. This establishes backend activation, not a frame-rate or image-quality guarantee. DLSS denoising remains unavailable in this preview.
+```powershell
+.\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --editor --quit
+.\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\gameplay_checks.gd
+.\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\smoke.gd
+```
 
-`-- --raster-preview` selects the VoxelGI fallback for comparison. Both modes were viewport-captured locally; the path-traced preview uses emission-mapped cutout sprite art and opaque emission background planes. The experimental fork still prints `OpTypeForwardPointer is not supported yet`; full material/denoiser parity remains outside this preview's acceptance evidence.
+The smoke check covers menu and loading state, sector selection, weapon firing,
+ship damage presentation and physical asteroid damage. Headless checks do not
+validate image quality or hardware behavior.
 
-The complete campaign and boss progression, full weapon/economy balance, shop/upgrades/saves, native-style menus, audio, touch/phone input, advanced haptics and network co-op are **not ported to this preview yet**. The combat-phase and party-size checks are a testable foundation, not feature parity. Use the existing native/browser builds for complete campaigns. See the [executive roadmap](../ROADMAP.md) and [AI handoff](../AI_HANDOFF.md).
+For local visual review, append `-- --capture-preview` to capture the menu, or
+`-- --raster-preview --capture-flight-preview` to capture gameplay in raster
+mode. Captures are saved under the ignored `.godot/` directory.
+
+## Packaging
+
+`PUBLISH_GODOT_PREVIEW.bat` creates a compact Windows preview archive containing
+the optimized executable and resource pack. Build and launch that archive on a
+clean machine before publication. Editor files, engine source, import caches and
+private project notes do not belong in the release.

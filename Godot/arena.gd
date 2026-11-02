@@ -5,6 +5,7 @@ extends Node3D
 const VisualSlot = preload("res://Godot/visual_slot.gd")
 const FlightNavigation = preload("res://Godot/flight_navigation.gd")
 const ProceduralSpace = preload("res://Godot/procedural_space.gd")
+const BackgroundLayers = preload("res://Godot/background_layers.gd")
 const BACKDROPS = ["spaceFrontier", "spaceRift", "spaceInferno"]
 const FIELD = Vector2(48, 27)
 const SHOT_LIMIT = 512
@@ -23,8 +24,12 @@ var pilot: CharacterBody3D
 var muzzle: Marker3D
 var environment: Environment
 var status: Label
+var menu_overlay: CanvasLayer
+var flight_button: Button
+var exit_button: Button
+var background_layers
+var space_world
 var backdrops: Array[Node3D] = []
-var scenery: Array[Node3D] = []
 var shots: Array[Dictionary] = []
 var enemy_shots: Array[Dictionary] = []
 var pickups: Array[Dictionary] = []
@@ -109,18 +114,11 @@ func _ready() -> void:
 	light.light_energy = 6
 	light.omni_range = 36
 	add_child(light)
-	for i in range(3):
-		var tile := VisualSlot.new()
-		tile.position.z = -30
-		add_child(tile)
+	background_layers = BackgroundLayers.new()
+	background_layers.name = "BackgroundLayers"
+	add_child(background_layers)
+	for tile in background_layers.panorama_tiles:
 		backdrops.append(tile)
-	for i in range(12):
-		var rock := VisualSlot.new()
-		var depth := i % 3
-		rock.configure(art("rock" if i % 2 else "rock2"), Vector2.ONE * (1.7 + depth * 0.7))
-		rock.position = Vector3(0, fposmod(i * 6.57, 25.0) - 12.5, -15 + depth * 3)
-		add_child(rock)
-		scenery.append(rock)
 	set_sector(0)
 	pilot = make_body("ship", Vector2(7.1, 2.68), ship_model)
 	pilot.collision_layer = 1
@@ -133,9 +131,9 @@ func _ready() -> void:
 	# Player-only screen boundaries let enemies enter from outside the viewport.
 	make_boundary(Vector3(-25, 0, 0), Vector3(2, 30, 8), 8)
 	make_boundary(Vector3(25, 0, 0), Vector3(2, 30, 8), 8)
-	var space := ProceduralSpace.new()
-	space.name = "ProceduralSpace"
-	add_child(space)
+	space_world = ProceduralSpace.new()
+	space_world.name = "ProceduralSpace"
+	add_child(space_world)
 	if not rtx_active and RenderingServer.get_current_rendering_method() == "forward_plus" and ResourceLoader.exists("res://Godot/space_gi.res"):
 		var gi := VoxelGI.new()
 		gi.size = Vector3(64, 28, 12)
@@ -160,8 +158,156 @@ func _ready() -> void:
 	status.add_theme_constant_override("shadow_offset_x", 2)
 	status.add_theme_constant_override("shadow_offset_y", 2)
 	hud.add_child(status)
-	if "--capture-preview" in OS.get_cmdline_user_args():
+	_build_flight_menu()
+	if "--capture-preview" in OS.get_cmdline_user_args() or "--capture-flight-preview" in OS.get_cmdline_user_args():
 		capture_preview.call_deferred()
+
+func _build_flight_menu() -> void:
+	menu_overlay = CanvasLayer.new()
+	menu_overlay.name = "FlightDeckMenu"
+	menu_overlay.layer = 20
+	menu_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(menu_overlay)
+	var fill := Control.new()
+	fill.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_overlay.add_child(fill)
+	var shade := ColorRect.new()
+	shade.color = Color(0.008, 0.022, 0.04, 0.82)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fill.add_child(shade)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fill.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(650, 430)
+	panel.add_theme_stylebox_override("panel", _flight_panel_style())
+	center.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	panel.add_child(content)
+	var eyebrow := Label.new()
+	eyebrow.text = "FLIGHT DECK   /   OPERATIONS CONTROL"
+	eyebrow.add_theme_color_override("font_color", Color("53ddff"))
+	eyebrow.add_theme_font_size_override("font_size", 13)
+	content.add_child(eyebrow)
+	var title := Label.new()
+	title.text = "IRON NEBULA"
+	title.add_theme_color_override("font_color", Color("edf7fb"))
+	title.add_theme_font_size_override("font_size", 38)
+	content.add_child(title)
+	var summary := Label.new()
+	summary.text = "EXPEDITION SYSTEMS   ·   SECTOR TRANSIT   ·   FLIGHT READY"
+	summary.add_theme_color_override("font_color", Color("8ba3b1"))
+	summary.add_theme_font_size_override("font_size", 13)
+	content.add_child(summary)
+	var divider := ColorRect.new()
+	divider.custom_minimum_size.y = 1
+	divider.color = Color("1f5567")
+	content.add_child(divider)
+	var selectors := GridContainer.new()
+	selectors.columns = 2
+	selectors.add_theme_constant_override("h_separation", 18)
+	selectors.add_theme_constant_override("v_separation", 12)
+	content.add_child(selectors)
+	var sector_label := Label.new()
+	sector_label.text = "DESTINATION"
+	sector_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	sector_label.add_theme_color_override("font_color", Color("b8ced8"))
+	selectors.add_child(sector_label)
+	var sector_select := OptionButton.new()
+	sector_select.add_item("FRONTIER")
+	sector_select.add_item("RIFT")
+	sector_select.add_item("INFERNO")
+	sector_select.select(sector)
+	sector_select.item_selected.connect(_on_sector_selected)
+	selectors.add_child(sector_select)
+	var difficulty_label := Label.new()
+	difficulty_label.text = "FLIGHT PROFILE"
+	difficulty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	difficulty_label.add_theme_color_override("font_color", Color("b8ced8"))
+	selectors.add_child(difficulty_label)
+	var difficulty_select := OptionButton.new()
+	difficulty_select.add_item("ASSISTED")
+	difficulty_select.add_item("STANDARD")
+	difficulty_select.add_item("VETERAN")
+	difficulty_select.select(difficulty)
+	difficulty_select.item_selected.connect(_on_difficulty_selected)
+	selectors.add_child(difficulty_select)
+	var mission := Label.new()
+	mission.text = "MISSION 01   /   SYSTEMS CHECK\nMovement  WASD · left stick     Fire  mouse · Space · RT\nWeapons  1–5     Sector map  Tab     Flight deck  Esc"
+	mission.add_theme_color_override("font_color", Color("95acb8"))
+	mission.add_theme_font_size_override("font_size", 13)
+	mission.add_theme_constant_override("line_spacing", 5)
+	content.add_child(mission)
+	flight_button = Button.new()
+	flight_button.text = "ENTER FLIGHT"
+	flight_button.custom_minimum_size.y = 52
+	flight_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flight_button.add_theme_font_size_override("font_size", 17)
+	flight_button.add_theme_color_override("font_color", Color("031018"))
+	flight_button.add_theme_stylebox_override("normal", _flight_button_style(Color("53ddff")))
+	flight_button.add_theme_stylebox_override("hover", _flight_button_style(Color("a0efff")))
+	flight_button.add_theme_stylebox_override("pressed", _flight_button_style(Color("36bcd9")))
+	flight_button.pressed.connect(begin_flight)
+	content.add_child(flight_button)
+	exit_button = Button.new()
+	exit_button.text = "EXIT PREVIEW"
+	exit_button.custom_minimum_size.y = 42
+	exit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	exit_button.add_theme_color_override("font_color", Color("b8ced8"))
+	exit_button.add_theme_stylebox_override("normal", _flight_button_style(Color("132330")))
+	exit_button.add_theme_stylebox_override("hover", _flight_button_style(Color("203a49")))
+	exit_button.pressed.connect(_quit_preview)
+	content.add_child(exit_button)
+	var footer := Label.new()
+	footer.text = "PREVIEW BUILD   ·   NO NETWORK CO-OP IN THIS ENGINE VIEW"
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	footer.add_theme_color_override("font_color", Color("617682"))
+	footer.add_theme_font_size_override("font_size", 11)
+	content.add_child(footer)
+	get_tree().paused = true
+
+func _flight_panel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("06111d")
+	style.border_color = Color("28576b")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 34
+	style.content_margin_right = 34
+	style.content_margin_top = 30
+	style.content_margin_bottom = 26
+	return style
+
+func _flight_button_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = color.lightened(0.12)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
+	return style
+
+func _on_sector_selected(value: int) -> void:
+	set_sector(value)
+
+func _on_difficulty_selected(value: int) -> void:
+	difficulty = clampi(value, 0, DIFFICULTY_HEALTH.size() - 1)
+
+func begin_flight() -> void:
+	get_tree().paused = false
+	menu_overlay.visible = false
+
+func _quit_preview() -> void:
+	get_tree().quit()
+
+func show_flight_menu() -> void:
+	flight_button.text = "RESUME FLIGHT"
+	menu_overlay.visible = true
+	get_tree().paused = true
 
 func create_projectile_batch(glow: Color) -> MultiMeshInstance3D:
 	var instance := MultiMeshInstance3D.new()
@@ -183,10 +329,18 @@ func create_projectile_batch(glow: Color) -> MultiMeshInstance3D:
 	return instance
 
 func capture_preview() -> void:
+	var flight_capture := "--capture-flight-preview" in OS.get_cmdline_user_args()
+	if flight_capture:
+		begin_flight()
+	Input.warp_mouse(Vector2(16, 704))
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	for i in range(60):
 		await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var result := image.save_png("res://.godot/engine-preview-raster.png" if "--raster-preview" in OS.get_cmdline_user_args() else "res://.godot/engine-preview.png")
+	var path := "res://.godot/engine-flight-preview.png" if flight_capture else "res://.godot/engine-preview.png"
+	if "--raster-preview" in OS.get_cmdline_user_args():
+		path = "res://.godot/engine-flight-preview-raster.png" if flight_capture else "res://.godot/engine-preview-raster.png"
+	var result := image.save_png(path)
 	print("Engine viewport capture: %s" % error_string(result))
 
 func configure_rtx() -> void:
@@ -356,18 +510,10 @@ func spawn_is_clear(center: Vector3, dimensions: Vector2) -> bool:
 
 func set_sector(value: int) -> void:
 	sector = posmod(value, BACKDROPS.size())
-	for i in range(backdrops.size()):
-		backdrops[i].configure(art(BACKDROPS[sector]), Vector2(FIELD.x * 1.5, (FIELD.y + 2.5) * 1.5))
-		var quad: MeshInstance3D = backdrops[i].get_child(backdrops[i].get_child_count() - 1)
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.albedo_texture = art(BACKDROPS[sector])
-		material.albedo_color = Color.BLACK
-		material.emission_enabled = true
-		material.emission = Color.WHITE
-		material.emission_texture = art(BACKDROPS[sector])
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		quad.material_override = material
+	if background_layers != null:
+		background_layers.set_sector(sector)
+	if space_world != null:
+		space_world.set_sector(sector)
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -378,7 +524,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		elif event.physical_keycode == KEY_T:
 			tethered = not tethered
 		elif event.physical_keycode == KEY_ESCAPE:
-			get_tree().quit()
+			show_flight_menu()
 
 func _physics_process(delta: float) -> void:
 	elapsed += delta
@@ -457,10 +603,7 @@ func _physics_process(delta: float) -> void:
 		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
 		if not hit.is_empty():
 			if hit.collider is RigidBody3D and hit.collider.has_meta("health"):
-				var health: int = int(hit.collider.get_meta("health")) - int(shot["damage"])
-				hit.collider.set_meta("health", health)
-				if health <= 0:
-					hit.collider.queue_free()
+				if space_world.damage_target(hit.collider, hit.position, int(shot["damage"]), shot.velocity):
 					score += 25
 			if hit.collider is CharacterBody3D and hit.collider in enemies and not hit.collider.is_queued_for_deletion():
 				var target := hit.collider as CharacterBody3D
@@ -505,15 +648,8 @@ func _physics_process(delta: float) -> void:
 		var shot: Dictionary = enemy_shots[i]
 		enemy_projectile_mesh.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * 0.9), shot["position"]))
 	enemy_projectile_mesh.multimesh.visible_instance_count = enemy_shots.size()
-	var offset := fposmod(elapsed * 0.35, FIELD.x * 2)
-	var tile_index := int(offset / FIELD.x)
-	for i in range(3):
-		var tile := backdrops[i]
-		tile.position.x = ((i - 1) * FIELD.x - fposmod(offset, FIELD.x)) * 1.5
-		tile.position.y = sin(elapsed / 95) * 0.55
-	for i in range(scenery.size()):
-		var depth := i % 3
-		scenery[i].position.x = fposmod(i * 9.7 - elapsed * [0.875, 3.5, 8.5][depth], 64) - 32
+	for i in range(backdrops.size()):
+		backdrops[i].position.y = sin(elapsed / 95) * 0.32
 	var current_boss: CharacterBody3D
 	for enemy in enemies:
 		if bool(enemy.get_meta("boss", false)) and not enemy.is_queued_for_deletion():
@@ -522,4 +658,4 @@ func _physics_process(delta: float) -> void:
 	var boss_status := ""
 	if current_boss != null:
 		boss_status = " | %s %s · %d/%d" % [current_boss.get_meta("boss_name"), current_boss.get_meta("phase"), current_boss.get_meta("health"), current_boss.get_meta("max_health")]
-	status.text = "ENGINE PREVIEW | %s | %s | %s LV %d | P%d · HP %d/%d · SH %d/%d | SCORE %d%s\nWASD / left stick · LMB / RT fire · 1-5 weapon · T tether %s · Tab sector · Esc quit" % [BACKDROPS[sector].to_upper(), "RTX (no denoiser)" if rtx_active else "RASTER", WEAPONS[weapon_mode]["name"], player_weapon_level, party_size, player_health, player_max_health, player_shield, player_max_shield, score, boss_status, "ON" if tethered else "OFF"]
+	status.text = "ENGINE PREVIEW | %s | %s | %s LV %d | P%d · HP %d/%d · SH %d/%d | SCORE %d%s\nWASD / left stick · LMB / RT fire · 1-5 weapon · T tether %s · Tab sector · Esc flight deck" % [BACKDROPS[sector].to_upper(), "RTX (no denoiser)" if rtx_active else "RASTER", WEAPONS[weapon_mode]["name"], player_weapon_level, party_size, player_health, player_max_health, player_shield, player_max_shield, score, boss_status, "ON" if tethered else "OFF"]

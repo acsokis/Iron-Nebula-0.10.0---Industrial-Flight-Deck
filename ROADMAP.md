@@ -1,42 +1,45 @@
-# Iron Nebula — executive roadmap
+# Iron Nebula — delivery roadmap
 
-Iron Nebula is a roguelike bullet-hell space arcade game. Releases represent complete player outcomes. Individual implementation steps belong in commits and issues.
+This roadmap defines player-facing outcomes and the evidence required before
+publication. Implementation notes, tuning rationale and internal design records
+are maintained locally and are not part of public release documentation.
 
-## Current position
+## Current delivery position
 
-| Area | Implemented foundation | Remaining evidence |
+| Platform | Current scope | Evidence required before release |
 |---|---|---|
-| Windows | Three sectors, bosses, five weapons, upgrades, shop, saves and controller input | Clean-machine and extended gameplay validation |
-| Browser | WebGL2 combat, native artwork/music, touch flight, endless orbit, GPU effects, damage hull frames, timed boss phases and mild party scaling | Target-hardware measurements, desktop parity and current deployment verification |
-| Co-op | Browser 2–6-player P2P and phone controller; separate native networking | Multi-machine Internet/NAT coverage and sustained sessions |
-| Godot | Dedicated NVIDIA engine preview, damage hull frames, boss combat phases, party-size testing and scaling pickups | Playable campaign migration, rendering/physics validation and feature parity |
+| Windows | .NET 10 MonoGame campaign, controller support and phased boss encounters | Clean-machine build, gameplay checks and package launch |
+| Browser | WebGL 2 solo and online co-op experience | Deployment verification, physical-device testing and sustained-session checks |
+| Godot | Playable 2.5D visual and physics preview | Rendered GPU review, collision/destruction validation and a published parity statement |
 
-Implementation, automated validation, physical-device tests and live multiplayer evidence are separate states. An engine source checkout is not a completed migration.
-The current 0.10.0 work is not a published release: Windows feature parity, a
-release build, release archives and publication are still pending. See
-[AI_HANDOFF.md](AI_HANDOFF.md) for verified commands and branch-specific blockers.
+Passing automated tests does not establish hardware compatibility, complete
+campaign quality or cross-platform equivalence.
 
-## Release milestones
+## Milestones
 
-| Milestone | Player outcome | Acceptance criteria |
-|---|---|---|
-| Alpha stabilization | Reliable desktop and browser play | Campaign/endless playthrough; saves and input regression; seamless layered backgrounds; reproducible deployment; no release-blocking defects |
-| Godot migration | Playable 2.5D game ready for 3D visual models | Complete combat loop and menus; original assets; validated physics; supported-hardware RTX and tested fallback; explicit parity report |
-| Connected co-op | Dependable 2–6-player online/LAN sessions | Multi-machine NAT tests; bounded network input; documented disconnect behavior; phone-controller and extended six-player tests |
-| 1.0 release candidate | Complete and supportable game | Clean installation; measured performance on target hardware; asset/license and security audits; documented known limitations |
+### Platform stabilization
 
-Work can proceed in parallel. Dates and release numbers are assigned when scope and acceptance evidence are concrete. Advanced rendering and haptics depend on hardware; experimental Bluetooth HD haptics stays off by default.
+- Preserve the Windows and browser experiences while validating platform
+  specific damage, boss phases, co-op balance and Godot preview work.
+- Complete platform-specific smoke, input, graphics and save checks.
+- Resolve release-blocking defects before publishing build artifacts.
 
-## Versioning policy
+### Godot preview readiness
 
-- Use `MAJOR.MINOR.PATCH`. Preserve published historical identifiers; do not renumber old releases.
-- A minor release delivers a cohesive feature set. The next feature release after 0.9.x is **0.10.0**, once its agreed scope passes acceptance.
-- A patch release is a published corrective release. Routine edits, visual tweaks, documentation and intermediate fixes do not automatically bump the product version.
-- Distributed development builds use a prerelease label and commit identity, for example `0.10.0-alpha.1+<commit>`. Increment the prerelease only for a new distributed test build.
-- Use `1.0.0-rc.1` for a release candidate and `1.0.0` for the accepted stable release.
-- Product release, network protocol and save schema have separate compatibility contracts. Change protocol/schema identifiers only when those contracts change.
-- Release notes describe shipped outcomes and breaking changes. Small implementation steps stay in Git history.
+- Validate the themed loading and flight-deck screens on supported display sizes.
+- Review layered backgrounds, ship presentation, effects and physical damage on
+  an actual GPU.
+- Confirm resource packaging, launch behavior and the documented limitations.
 
-## Delivery
+### Connected play
 
-Edit the canonical repository directly and build through CI. Keep the working native/browser versions available while the Godot branch matures. Ship the engine migration with a parity report and known limitations. Do not use intermediate patch archives or duplicate source trees.
+- Verify co-op operation on separate physical devices and networks.
+- Confirm disconnect, recovery and session-exit behavior.
+- Document platform boundaries without exposing internal implementation details.
+
+### Stable release
+
+- Complete clean installation, performance, accessibility, legal and security
+  reviews.
+- Publish verified packages and user-facing release notes.
+- Assign any public product identifier only when a release is approved.

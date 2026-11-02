@@ -2016,6 +2016,7 @@ private void DrawShop()
             Enemy e=_enemies[i];
             ApplyEnemyDifficultyOnce(e);
             e.Age+=dt;
+            AdvanceBossCombatPhase(e,dt);
             float previousY=e.Position.Y;
             e.HitFlash=Math.Max(0,e.HitFlash-dt*4.3f);
             e.HitReaction=Math.Max(0f,e.HitReaction-dt);
@@ -2051,8 +2052,8 @@ private void DrawShop()
                     Boom(e.Position+new Vector2(-60f,0f),34,Color.MediumPurple);
                     Alert(colossus?"RIFT COLOSSUS  -  PHASE "+phase:"RIFT GUARDIAN  -  OVERDRIVE",3f);
                 }
-                e.FireTimer-=dt/DifficultyShotTimeFactor;
-                if(e.Position.X<=anchor && e.FireTimer<=0f)
+                if(e.BossPhase==BossCombatPhase.Attack) e.FireTimer-=dt/DifficultyShotTimeFactor;
+                if(e.BossPhase==BossCombatPhase.Attack && e.Position.X<=anchor && e.FireTimer<=0f)
                 {
                     FireRiftBoss(e);
                     e.FireTimer=colossus?(phase==3?.88f:phase==2?1.18f:1.52f):phase==2?.90f:1.60f;
@@ -2071,8 +2072,8 @@ private void DrawShop()
                     SpawnCombatBurst(e.Position+new Vector2(-85,0),Color.MediumPurple,30,120f,470f);
                     Alert("WARDEN FRIGATE  -  OVERDRIVE",2.5f);
                 }
-                e.FireTimer-=dt/DifficultyShotTimeFactor;
-                if(e.Position.X<=1500 && e.FireTimer<=0)
+                if(e.BossPhase==BossCombatPhase.Attack) e.FireTimer-=dt/DifficultyShotTimeFactor;
+                if(e.BossPhase==BossCombatPhase.Attack && e.Position.X<=1500 && e.FireTimer<=0)
                 {
                     WardenFire(e);
                     e.FireTimer=phase==2?.62f:1.1f;
@@ -2097,8 +2098,8 @@ private void DrawShop()
                     SpawnEnemy(EnemyKind.Interceptor,new Vector2(ViewWidth+150,230),.3f,2);
                     SpawnEnemy(EnemyKind.Interceptor,new Vector2(ViewWidth+275,865),1.7f,2);
                 }
-                e.FireTimer-=dt/DifficultyShotTimeFactor;
-                if(e.Position.X<=1510 && e.FireTimer<=0)
+                if(e.BossPhase==BossCombatPhase.Attack) e.FireTimer-=dt/DifficultyShotTimeFactor;
+                if(e.BossPhase==BossCombatPhase.Attack && e.Position.X<=1510 && e.FireTimer<=0)
                 {
                     BossFire(e);
                     e.FireTimer=phase==3?.42f:phase==2?.66f:.95f;
@@ -2417,7 +2418,12 @@ private void DrawShop()
         _beamDamageTimer+=interval;
         if(target!=null)
         {
-            int beamDamage=1+NextPrimaryPowerBonus();
+            if(GameplayRules.IsBossShielded(target))
+            {
+                SpawnCombatFlash(_beamEnd,-Vector2.UnitX,BossAccent(target.Kind),34f,.13f);
+                return;
+            }
+            int beamDamage=GameplayRules.ResolveBossDamage(target,1+NextPrimaryPowerBonus());
             target.Health-=beamDamage;
             target.HitFlash=MathF.Max(target.HitFlash,.50f);
             target.HitReaction=MathF.Max(target.HitReaction,.07f);
@@ -2497,8 +2503,17 @@ private void DrawShop()
                     Enemy enemy=_enemies[k];
                     if(shot.HitEnemies.Contains(enemy)) continue;
                     if(SegmentDistanceSquared(enemy.Position,shot.PreviousPosition,shot.Position)>MathF.Pow(shot.Radius+enemy.Radius,2)) continue;
-                    enemy.Health-=shot.Damage;
-                    RecordPrimaryDamage(enemy,shot.Damage,shot);
+                    if(GameplayRules.IsBossShielded(enemy))
+                    {
+                        SpawnCombatFlash(shot.Position,shot.Velocity,BossAccent(enemy.Kind),34f,.13f);
+                        shot.HitEnemies.Add(enemy);
+                        shot.HitsRemaining--;
+                        if(shot.HitsRemaining<=0) { consumed=true;break; }
+                        continue;
+                    }
+                    int damage=GameplayRules.ResolveBossDamage(enemy,shot.Damage);
+                    enemy.Health-=damage;
+                    RecordPrimaryDamage(enemy,damage,shot);
                     SpawnPrimaryImpact(shot,shot.Position);
                     OnBossImpact(enemy,shot.Position);
                     enemy.HitFlash=.7f;
@@ -2596,7 +2611,7 @@ private void DrawShop()
         if(_pickups.Count>=56) return;
         _pickups.Add(new Pickup
         {
-            Kind=PickupKind.Credits,Credits=amount,Position=origin,
+            Kind=PickupKind.Credits,Credits=(int)MathF.Ceiling(amount*CoopPickupMultiplier),Position=origin,
             Velocity=new Vector2(-93f,Rand(-22f,22f))
         });
     }
@@ -2606,7 +2621,7 @@ private void DrawShop()
         if(_pickups.Count>=56) return;
         _pickups.Add(new Pickup
         {
-            Kind=PickupKind.RareCache,Credits=amount,Position=origin,
+            Kind=PickupKind.RareCache,Credits=(int)MathF.Ceiling(amount*CoopPickupMultiplier),Position=origin,
             Velocity=new Vector2(-88f,0f)
         });
         Alert("RARE CREDIT CACHE DETECTED",2f);
@@ -2673,26 +2688,30 @@ private void DrawShop()
                         _sectorWeaponPickups++;
                         if(_pilot.WeaponLevel<Pilot.MaxWeaponLevel)
                         {
-                            _pilot.WeaponLevel++;
+                            _pilot.WeaponLevel=Math.Min(Pilot.MaxWeaponLevel,
+                                _pilot.WeaponLevel+ScaleCoopPickupUnits(1));
                             Alert("PRIMARY POWER  LV "+_pilot.WeaponLevel+" / "+Pilot.MaxWeaponLevel,2);
                             _score+=200;
                         }
                         else
                         {
                             // Never waste a max-level pickup. No level 8 or second gun appears.
-                            _score+=750;
-                            Alert("MAX POWER  +750 BONUS",1.7f);
+                            int bonus=(int)MathF.Round(750*CoopPickupMultiplier);
+                            _score+=bonus;
+                            Alert("MAX POWER  +"+bonus+" BONUS",1.7f);
                         }
                         break;
                     case PickupKind.Repair:
                         _sectorSupplyPickups++;
-                        _pilot.Health=Math.Min(_pilot.MaxHealth,_pilot.Health+1);
+                        _pilot.Health=Math.Min(_pilot.MaxHealth,
+                            _pilot.Health+ScaleCoopPickupUnits(1));
                         Alert("HULL REPAIRED",2);
                         burst=Color.LawnGreen;
                         break;
                     case PickupKind.Shield:
                         _sectorSupplyPickups++;
-                        _pilot.Shield=Math.Min(_pilot.MaxShield,_pilot.Shield+2);
+                        _pilot.Shield=Math.Min(_pilot.MaxShield,
+                            _pilot.Shield+ScaleCoopPickupUnits(2));
                         Alert("SHIELD CHARGED  "+_pilot.Shield+" / "+_pilot.MaxShield,2);
                         burst=Color.DeepSkyBlue;
                         break;
@@ -2707,7 +2726,8 @@ private void DrawShop()
                         }
                         else
                         {
-                            _pilot.Shield=Math.Min(_pilot.MaxShield,_pilot.Shield+1);
+                            _pilot.Shield=Math.Min(_pilot.MaxShield,
+                                _pilot.Shield+ScaleCoopPickupUnits(1));
                             Alert("DRONE RECHARGED SHIELD",2);
                         }
                         burst=Color.MediumPurple;
@@ -3379,6 +3399,7 @@ private void DrawShop()
                 _voxelVisuals.Draw(_batch,e.VisualId,tex,artPos,shipTint,0,origin,scale,facing,e.Health/(float)Math.Max(1,e.MaxHealth));
                 // No legacy scorch hull overlay; it does not fit the new HD model.
             }
+            DrawBossCombatShield(e,artPos);
             // Every multi-hit regular enemy (including the Rift turrets) shows REAL remaining HP.
             // The old 4px Bar() had an 8px inner margin: its colored fill was always invisible.
             if(e.MaxHealth>1 && e.Health>0 && e.Kind!=EnemyKind.Sentinel &&
@@ -4008,8 +4029,14 @@ private void DrawPauseMenu()
                 EnemyKind.Sentinel=>"SENTINEL CORE",
                 _=>"WARDEN"
             };
-            _ui.Text(_batch,bossName+"  PHASE "+e.LastPhase,
-                new Vector2(ViewWidth/2,188),.34f,tint,true);
+            string combatPhase=e.BossPhase switch
+            {
+                BossCombatPhase.Shield=>"SHIELD",
+                BossCombatPhase.Damage=>"DAMAGE",
+                _=>"ATTACK"
+            };
+            _ui.Text(_batch,bossName+" / "+combatPhase+" / STAGE "+e.LastPhase,
+                new Vector2(ViewWidth/2,188),.31f,tint,true);
             _ui.Bar(_batch,new Rectangle(650,214,620,18),e.Health/(float)Math.Max(1,e.MaxHealth),tint);
             _ui.Text(_batch,e.Health+" / "+e.MaxHealth,new Vector2(1300,208),.33f,Color.White);
         }
