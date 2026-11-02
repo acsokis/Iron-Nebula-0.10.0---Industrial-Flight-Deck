@@ -8,7 +8,7 @@ are maintained locally and are not part of public release documentation.
 
 | Platform | Current scope | Evidence required before release |
 |---|---|---|
-| Windows | .NET 10 MonoGame campaign, controller support and phased boss encounters | Clean-machine build, gameplay checks and package launch |
+| Windows | .NET 10 MonoGame campaign, controller support and presentation improvements | Clean-machine build, gameplay checks and package launch |
 | Browser | WebGL 2 solo and online co-op experience | Deployment verification, physical-device testing and sustained-session checks |
 | Godot | Playable 2.5D visual and physics preview | Rendered GPU review, collision/destruction validation and a published parity statement |
 
@@ -20,7 +20,7 @@ campaign quality or cross-platform equivalence.
 ### Platform stabilization
 
 - Preserve the Windows and browser experiences while validating platform
-  specific damage, boss phases, co-op balance and Godot preview work.
+  presentation, cooperative progression and Godot preview work.
 - Complete platform-specific smoke, input, graphics and save checks.
 - Resolve release-blocking defects before publishing build artifacts.
 

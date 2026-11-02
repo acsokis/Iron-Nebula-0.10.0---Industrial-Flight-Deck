@@ -15,7 +15,7 @@ rögzíti.
 
 - [ ] Tisztán restaurálható Release build, figyelmeztetés és fordítási hiba nélkül
 - [ ] Kontroller- és co-op-ellenőrzések a jelenlegi desktop forráson
-- [ ] Sérülés/javítás, bossállapotok és ko-op felvételi hozamok ellenőrizve
+- [ ] Sérülés és javítás visszajelzése, valamint ko-op jutalmazás ellenőrizve
 - [ ] Témázott ablak, induló betöltőfelület, hang és mentés ellenőrizve
 - [ ] Kiadási csomag tiszta Windows-környezetben elindul
 

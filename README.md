@@ -7,8 +7,8 @@ feature parity and release readiness are tracked separately.
 ## Platform overview
 
 - **Windows:** .NET 10 MonoGame desktop application with campaign progression,
-  controller support, damage-responsive hull presentation and phased boss
-  encounters. Release validation is recorded in the [AI handoff](AI_HANDOFF.md).
+  controller support, damage-responsive hull presentation and refined combat
+  presentation. Release validation is recorded in the [AI handoff](AI_HANDOFF.md).
 - **Browser:** WebGL 2 game with solo play, optional online co-op and phone
   control. See the [browser guide](Web/README.md).
 - **Godot:** local 2.5D engine preview for visual and physics evaluation. It is

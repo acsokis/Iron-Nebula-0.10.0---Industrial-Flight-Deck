@@ -7,9 +7,9 @@ funkciói eltérnek; a teljes platformparitás még nem igazolt.
 ## Platformok
 
 - **Windows:** .NET 10-alapú MonoGame asztali játék kampánnyal,
-  kontrollerkezeléssel, sérülésre reagáló hajómegjelenítéssel és fázisos
-  boss-harcokkal. A kiadási ellenőrzés állapotát az [AI-átadás](AI_HANDOFF.md)
-  rögzíti.
+  kontrollerkezeléssel és sérülésre reagáló hajómegjelenítéssel, valamint
+  továbbfejlesztett harci megjelenítéssel. A kiadási ellenőrzés állapotát az
+  [AI-átadás](AI_HANDOFF.md) rögzíti.
 - **Böngésző:** WebGL 2 megjelenítés, egyjátékos mód, választható online co-op
   és telefonos vezérlés. Részletek a [webes útmutatóban](Web/README.md).
 - **Godot:** helyben tesztelhető, 2.5D grafikai és fizikai preview; nem váltja ki

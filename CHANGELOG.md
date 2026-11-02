@@ -10,11 +10,11 @@ retain implementation details.
   scenery, voxel-cell damage, bounded physical debris and atlas-based impact
   effects. Loading, sector changes and hull presentation pass automated checks.
 - **Browser:** provides the existing WebGL 2 game, optional co-op and mobile
-  control, with party-aware balance and boss combat phases.
+  control, with improved cooperative progression and combat presentation.
 - **Windows:** targets .NET 10 and includes damage-responsive metallic hull
-  backing, attack/shield/damage boss phases and modest co-op scaling. A Release
-  build, gameplay checks and complete-asset release archive pass; clean-machine
-  validation remains open.
+  backing and cross-platform gameplay refinements. A Release build, gameplay
+  checks and complete-asset release archive pass; clean-machine validation
+  remains open.
 
 These updates are development work, not a published release. Release packaging
 and publication require the platform-specific acceptance evidence in

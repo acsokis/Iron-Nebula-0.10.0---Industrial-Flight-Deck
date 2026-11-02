@@ -17,16 +17,17 @@ change or test in another implementation.
 
 ## Current working state
 
-- Working branch: `engine/godot-nvidia`; current base commit before this work:
-  `4d4547c`. Confirm `git status` and `git log` before committing.
-- Windows now targets .NET 10 and includes texture-alpha-aligned metallic
-  backing during hull damage, boss attack/shield/damage phases, an exposed-phase
-  damage bonus, and restrained party scaling for enemy durability, firing rate
-  and pickup rewards. Previously packaged but missing source assets were
-  restored to `Assets/`, including the owner-authorized soundtrack.
-- The browser and Godot boss/co-op work is present in the existing project
-  history. Godot remains a local visual/physics preview, not network co-op or
-  full campaign parity.
+- Working branch: `engine/godot-nvidia`; implementation commit:
+  `ed31f68c45fc4effc2662b2a4eadee09bcef127c` (pushed to the `contribution`
+  remote). Its parent baseline is `4d4547c`.
+- Windows targets .NET 10 and includes damage-responsive metallic hull
+  presentation and cross-platform gameplay refinements. Runtime source art and
+  audio are present in `Assets/`; unused legacy sprites were removed. The
+  original soundtrack source remains available to the browser edition and is
+  excluded from the Windows package.
+- Browser and Godot cross-platform work is present in the project history.
+  Godot remains a local visual/physics preview, not network co-op or full
+  campaign parity.
 - Godot includes the themed loading flow and flight-deck menu, multi-depth
   sector backgrounds, a damage-responsive hull frame, and destructible physical
   station/asteroid scenery with bounded debris and effects.
@@ -50,19 +51,24 @@ Latest results: Windows Release build succeeded with no warnings or errors;
 37 co-op transport/gameplay-rule checks and 20 visual/physics checks passed.
 Godot import passed, with 18 gameplay checks and 64 smoke checks passing. The
 flight-deck menu and gameplay were reviewed in Forward+ raster captures on an
-NVIDIA GeForce RTX 4080. Captures are ignored local QA images.
+NVIDIA GeForce RTX 4080. Both release archives were extracted and launched
+successfully in isolated temporary directories on the development host.
 
-Both release archives were rebuilt and inspected: the Windows ZIP contains one
-executable and every runtime asset; the Godot ZIP contains only its executable
-and resource pack. These checks do not prove physical controller compatibility,
-cross-network co-op, clean-machine installation, long-session stability or
-Windows rendered quality. The archives have not been published.
+The Windows ZIP contains one executable and 249 required image/audio assets;
+the Godot ZIP contains only its executable and resource pack. These checks do
+not prove physical controller compatibility, cross-network co-op, clean-machine
+installation, long-session stability or Windows rendered quality. The
+GitHub release is not published: the available API credential was rejected
+and the integrated browser is signed out. Publishing requires an authenticated
+GitHub session with release permissions.
 
 ## Open work and constraints
 
 - Complete Windows visual and physical-device review, including the metallic
-  hull backing and boss phase transitions.
-- Launch both archives in clean environments before publication.
+  hull presentation.
+- Validate both archives on a clean Windows environment.
+- Publish the built archives after authenticated GitHub release access is
+  available; do not manually trigger GitHub Actions.
 - Run the browser checks if browser source or deployment settings change.
 - Do not publish local private notes, user saves, ignored engine caches or
   unverified binaries. Do not manually trigger GitHub Actions.
