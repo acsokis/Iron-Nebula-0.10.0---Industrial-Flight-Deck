@@ -17,6 +17,19 @@ Godot command-line arguments. The engine is built once and kept under the ignore
 `.engine/` directory; run the build script if the launcher reports it missing.
 The helper checks out the official NVIDIA source at the immutable revision in [engine.json](./engine.json), installs pinned SCons into a project-local virtual environment, and builds the editor. It does not install or invoke any AI service. Engine sources, intermediate objects and executables stay ignored; no source ZIP or patch workflow is used. This minimal source build omits optional AccessKit and ANGLE dependencies; it does not establish accessibility readiness for a release.
 
+The preview opens with a dark, cyan-accented loading screen. It loads the arena,
+its textures and the baked GI resource on worker threads, then renders several
+frames under the loading overlay so first-use graphics pipelines can initialize.
+The game window opens centered at 1280x720; the in-game status HUD uses the same
+high-contrast palette.
+
+Create a one-download Windows preview release with
+`PUBLISH_GODOT_PREVIEW.bat`. It writes
+`dist/IronNebula-Godot-win-x64.zip`, containing only the optimized game
+executable and its Godot resource pack; engine sources, editor and import
+cache are not included. The separate PCK avoids the embedded-pack startup
+failure observed with this experimental NVIDIA engine fork.
+
 Use `--rendering-method gl_compatibility` on hardware without Forward+ support. The browser game remains the existing WebGL2 implementation; this preview does not export hardware RTX to the browser.
 
 Import assets and run the headless movement/collision/model-slot check:

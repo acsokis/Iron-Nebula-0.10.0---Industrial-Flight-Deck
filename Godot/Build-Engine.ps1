@@ -1,4 +1,4 @@
-param([int]$Jobs=8,[string]$Python='python')
+param([int]$Jobs=8,[string]$Python='python',[switch]$ReleaseTemplate)
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
 $pin=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'engine.json') -Raw | ConvertFrom-Json
@@ -24,9 +24,13 @@ if(!(Test-Path -LiteralPath $venv)){Invoke-Checked $Python @('-m','venv',$venv)}
 $buildPython=Join-Path $venv 'Scripts/python.exe'
 Invoke-Checked $buildPython @('-m','pip','install',('scons=='+$pin.scons))
 # Keep generated dependency/build trees out of the Godot resource importer.
-foreach($relative in @('Web/node_modules','Web/.browsers','Web/dist','Web/test-results','bin','obj')){
+foreach($relative in @('Web/node_modules','Web/.browsers','Web/dist','Web/test-results','bin','obj','dist')){
     $directory=Join-Path $repo $relative
     if(Test-Path -LiteralPath $directory){[IO.File]::WriteAllText((Join-Path $directory '.gdignore'),'')}
 }
 Invoke-Checked $buildPython @('-m','SCons','-C',$engine,'platform=windows','target=editor','arch=x86_64','d3d12=no','vulkan=yes','opengl3=yes','angle=no','accesskit=no','use_streamline=yes','debug_symbols=no','optimize=speed','lto=none',('-j'+[Math]::Min(32,[Math]::Max(1,$Jobs))))
 Write-Output (Join-Path $engine 'bin/godot.windows.editor.x86_64.exe')
+if($ReleaseTemplate){
+    Invoke-Checked $buildPython @('-m','SCons','-C',$engine,'platform=windows','target=template_release','arch=x86_64','d3d12=no','vulkan=yes','opengl3=yes','angle=no','accesskit=no','use_streamline=yes','debug_symbols=no','optimize=speed','lto=none',('-j'+[Math]::Min(32,[Math]::Max(1,$Jobs))))
+    Write-Output (Join-Path $engine 'bin/godot.windows.template_release.x86_64.exe')
+}

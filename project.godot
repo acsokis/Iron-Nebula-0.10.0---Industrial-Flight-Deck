@@ -3,15 +3,17 @@ config_version=5
 
 [application]
 config/name="Iron Nebula — Godot engine preview"
-run/main_scene="res://Godot/arena.tscn"
+run/main_scene="res://Godot/loading_screen.tscn"
 config/features=PackedStringArray("4.8", "Forward Plus")
 
 [display]
+window/size/initial_position_type=1
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=1
 
 [physics]
 3d/physics_engine="Jolt Physics"

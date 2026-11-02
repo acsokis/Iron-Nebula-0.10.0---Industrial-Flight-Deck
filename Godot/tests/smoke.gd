@@ -19,6 +19,18 @@ func key(code: Key, pressed: bool) -> void:
 	Input.parse_input_event(event)
 
 func run_checks() -> void:
+	var loading_scene := load("res://Godot/loading_screen.tscn") as PackedScene
+	check(loading_scene != null, "A themed loading screen is the Godot startup scene")
+	if loading_scene != null:
+		var loading = loading_scene.instantiate()
+		loading.auto_start = false
+		root.add_child(loading)
+		await process_frame
+		check(loading.status_label.text == "PREPARING FLIGHT SYSTEMS...", "Loading UI starts with a visible status")
+		check(loading.progress_bar.max_value == 100 and loading.overlay.layer == 10, "Themed loading progress displays above the game")
+		loading.queue_free()
+	var configured_main_scene: String = ProjectSettings.get_setting("application/run/main_scene")
+	check(configured_main_scene == "res://Godot/loading_screen.tscn", "Project launches through the loading screen")
 	var scene := load("res://Godot/arena.tscn") as PackedScene
 	check(scene != null, "Arena scene must load")
 	if scene == null:
@@ -116,7 +128,7 @@ func run_checks() -> void:
 	check(arena.pilot.position.x < 23, "Solid world boundaries stop the pilot without transform clamping")
 	check(not arena.spawn_is_clear(arena.pilot.position, Vector2(7.1, 2.68)), "Spawner rejects occupied full-body volume")
 	if failures.is_empty():
-		print("PASS: %d Godot checks (five weapons, metallic hull frames, physics hits, GPU bounds and model replacement)" % check_count)
+		print("PASS: %d Godot checks (themed loading, five weapons, metallic hull frames, physics hits, GPU bounds and model replacement)" % check_count)
 	else:
 		printerr("FAIL: %d of %d Godot checks failed" % [failures.size(), check_count])
 	arena.queue_free()

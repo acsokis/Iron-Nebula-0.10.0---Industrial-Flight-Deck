@@ -122,6 +122,10 @@ func _ready() -> void:
 	status = Label.new()
 	status.position = Vector2(28, 24)
 	status.add_theme_font_size_override("font_size", 24)
+	status.add_theme_color_override("font_color", Color("b8f1ff"))
+	status.add_theme_color_override("font_shadow_color", Color(0.0, 0.04, 0.09, 0.9))
+	status.add_theme_constant_override("shadow_offset_x", 2)
+	status.add_theme_constant_override("shadow_offset_y", 2)
 	hud.add_child(status)
 	if "--capture-preview" in OS.get_cmdline_user_args():
 		capture_preview.call_deferred()
