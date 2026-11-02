@@ -6,6 +6,8 @@ const VisualSlot = preload("res://Godot/visual_slot.gd")
 const FlightNavigation = preload("res://Godot/flight_navigation.gd")
 const ProceduralSpace = preload("res://Godot/procedural_space.gd")
 const BackgroundLayers = preload("res://Godot/background_layers.gd")
+const CombatHud = preload("res://Godot/combat_hud.gd")
+const CombatAudio = preload("res://Godot/combat_audio.gd")
 const BACKDROPS = ["spaceFrontier", "spaceRift", "spaceInferno"]
 const FIELD = Vector2(48, 27)
 const SHOT_LIMIT = 512
@@ -23,7 +25,8 @@ var camera: Camera3D
 var pilot: CharacterBody3D
 var muzzle: Marker3D
 var environment: Environment
-var status: Label
+var combat_hud
+var audio_system
 var menu_overlay: CanvasLayer
 var flight_button: Button
 var exit_button: Button
@@ -42,18 +45,28 @@ var spawn_clock := 0.0
 var weapon_mode := 0
 var sector := 0
 var score := 0
+var kill_chain := 0
+var chain_clock := 0.0
+var shots_fired := 0
+var shots_hit := 0
+var wave_count := 0
+var spawned_enemies := 0
 var party_size := 1
 var difficulty := 1
 var player_health := 4
 var player_max_health := 4
 var player_shield := 2
 var player_max_shield := 3
+var player_lives := 3
+var credits := 0
+var game_over := false
 var player_invulnerability := 0.0
 var player_weapon_level := 1
 var miniboss_spawned := false
 var boss_spawned := false
 var tethered := true
 var rtx_active := false
+var exit_requested := false
 var navigation = FlightNavigation.new()
 
 func art(name: String) -> Texture2D:
@@ -90,6 +103,10 @@ func boss_damage_amount(damage: int, phase: String) -> int:
 
 func _ready() -> void:
 	parse_run_options()
+	get_tree().auto_accept_quit = false
+	Engine.max_fps = 244
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	camera.fov = rad_to_deg(2 * atan(FIELD.y / 120))
@@ -148,17 +165,15 @@ func _ready() -> void:
 	add_child(projectile_mesh)
 	enemy_projectile_mesh = create_projectile_batch(Color("ff785d"))
 	add_child(enemy_projectile_mesh)
-	var hud := CanvasLayer.new()
-	add_child(hud)
-	status = Label.new()
-	status.position = Vector2(28, 24)
-	status.add_theme_font_size_override("font_size", 24)
-	status.add_theme_color_override("font_color", Color("b8f1ff"))
-	status.add_theme_color_override("font_shadow_color", Color(0.0, 0.04, 0.09, 0.9))
-	status.add_theme_constant_override("shadow_offset_x", 2)
-	status.add_theme_constant_override("shadow_offset_y", 2)
-	hud.add_child(status)
+	combat_hud = CombatHud.new()
+	combat_hud.name = "CombatHud"
+	add_child(combat_hud)
+	audio_system = CombatAudio.new()
+	audio_system.name = "CombatAudio"
+	add_child(audio_system)
+	audio_system.start_music()
 	_build_flight_menu()
+	_refresh_combat_hud(0.0)
 	if "--capture-preview" in OS.get_cmdline_user_args() or "--capture-flight-preview" in OS.get_cmdline_user_args():
 		capture_preview.call_deferred()
 
@@ -179,7 +194,7 @@ func _build_flight_menu() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fill.add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(650, 430)
+	panel.custom_minimum_size = Vector2(650, 475)
 	panel.add_theme_stylebox_override("panel", _flight_panel_style())
 	center.add_child(panel)
 	var content := VBoxContainer.new()
@@ -222,7 +237,7 @@ func _build_flight_menu() -> void:
 	sector_select.item_selected.connect(_on_sector_selected)
 	selectors.add_child(sector_select)
 	var difficulty_label := Label.new()
-	difficulty_label.text = "FLIGHT PROFILE"
+	difficulty_label.text = "ARCADE DIFFICULTY"
 	difficulty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	difficulty_label.add_theme_color_override("font_color", Color("b8ced8"))
 	selectors.add_child(difficulty_label)
@@ -233,8 +248,19 @@ func _build_flight_menu() -> void:
 	difficulty_select.select(difficulty)
 	difficulty_select.item_selected.connect(_on_difficulty_selected)
 	selectors.add_child(difficulty_select)
+	var upscaling_label := Label.new()
+	upscaling_label.text = "3D UPSCALING"
+	upscaling_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	upscaling_label.add_theme_color_override("font_color", Color("b8ced8"))
+	selectors.add_child(upscaling_label)
+	var upscaling_select := OptionButton.new()
+	upscaling_select.add_item("NATIVE")
+	upscaling_select.add_item("FSR QUALITY")
+	upscaling_select.add_item("FSR PERFORMANCE")
+	upscaling_select.item_selected.connect(set_upscaling_mode)
+	selectors.add_child(upscaling_select)
 	var mission := Label.new()
-	mission.text = "MISSION 01   /   SYSTEMS CHECK\nMovement  WASD · left stick     Fire  mouse · Space · RT\nWeapons  1–5     Sector map  Tab     Flight deck  Esc"
+	mission.text = "PRO-ARCADE   /   SCORE ATTACK   /   FIXED RULESET\nChain kills for a rising score multiplier; avoid hits to keep your streak.\nMovement  WASD · left stick     Fire  mouse · Space · RT\nWeapons  1–5     Sector map  Tab     Flight deck  Esc"
 	mission.add_theme_color_override("font_color", Color("95acb8"))
 	mission.add_theme_font_size_override("font_size", 13)
 	mission.add_theme_constant_override("line_spacing", 5)
@@ -297,23 +323,108 @@ func _on_sector_selected(value: int) -> void:
 func _on_difficulty_selected(value: int) -> void:
 	difficulty = clampi(value, 0, DIFFICULTY_HEALTH.size() - 1)
 
+func set_upscaling_mode(value: int) -> void:
+	match value:
+		1:
+			get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+			get_viewport().scaling_3d_scale = 0.82
+		2:
+			get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+			get_viewport().scaling_3d_scale = 0.68
+		_:
+			get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			get_viewport().scaling_3d_scale = 1.0
+	if combat_hud != null:
+		combat_hud.show_event(["NATIVE 3D RENDERING", "AMD FSR 1 · QUALITY", "AMD FSR 1 · PERFORMANCE"][clampi(value, 0, 2)], Color("58dcf4"))
+
+func set_boss_phase(enemy: CharacterBody3D, phase: String) -> void:
+	enemy.set_meta("phase", phase)
+	var hull := enemy.get_node("VisualSlot/HullSprite") as MeshInstance3D
+	var hull_material := hull.material_override as StandardMaterial3D
+	hull_material.emission = Color("63bfff") if phase == "SHIELD" else Color.WHITE
+	var phase_shield := enemy.get_node("VisualSlot/PhaseShield") as MeshInstance3D
+	phase_shield.visible = phase == "SHIELD"
+	if is_instance_valid(audio_system):
+		audio_system.play_effect("phase", enemy.global_position)
+	if is_instance_valid(combat_hud):
+		combat_hud.show_event("%s PHASE   ·   %s" % [enemy.get_meta("boss_name"), phase], Color("69ddff") if phase == "SHIELD" else Color("ffc66d") if phase == "DAMAGE" else Color("ff765f"))
+
 func begin_flight() -> void:
+	if game_over:
+		restart_arcade_run()
 	get_tree().paused = false
 	menu_overlay.visible = false
+	flight_button.text = "ENTER FLIGHT"
+	audio_system.start_music()
+
+func restart_arcade_run() -> void:
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	enemies.clear()
+	for pickup in pickups:
+		var node: Node3D = pickup["node"]
+		if is_instance_valid(node):
+			node.queue_free()
+	pickups.clear()
+	space_world.queue_free()
+	space_world = ProceduralSpace.new()
+	space_world.name = "ProceduralSpace"
+	add_child(space_world)
+	space_world.set_sector(sector)
+	elapsed = 0.0
+	fire_clock = 0.0
+	spawn_clock = 0.0
+	score = 0
+	credits = 0
+	kill_chain = 0
+	chain_clock = 0.0
+	shots_fired = 0
+	shots_hit = 0
+	spawned_enemies = 0
+	wave_count = 0
+	navigation = FlightNavigation.new()
+	player_lives = 3
+	player_health = player_max_health
+	player_shield = player_max_shield
+	player_invulnerability = 0.0
+	pilot.velocity = Vector3.ZERO
+	player_weapon_level = 1
+	weapon_mode = 0
+	miniboss_spawned = false
+	boss_spawned = false
+	game_over = false
+	pilot.position = Vector3(-13, 0, 0)
+	(pilot.get_node("VisualSlot") as NebulaVisualSlot).set_damage_fraction(1.0)
+	shots.clear()
+	enemy_shots.clear()
+	projectile_mesh.multimesh.visible_instance_count = 0
+	enemy_projectile_mesh.multimesh.visible_instance_count = 0
 
 func _quit_preview() -> void:
+	if exit_requested:
+		return
+	exit_requested = true
+	audio_system.stop_all()
+	await get_tree().create_timer(0.25, true).timeout
 	get_tree().quit()
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_quit_preview()
+
 func show_flight_menu() -> void:
-	flight_button.text = "RESUME FLIGHT"
+	flight_button.text = "START NEW RUN" if game_over else "RESUME FLIGHT"
 	menu_overlay.visible = true
 	get_tree().paused = true
 
 func create_projectile_batch(glow: Color) -> MultiMeshInstance3D:
 	var instance := MultiMeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.12
-	mesh.height = 0.24
+	var mesh := CapsuleMesh.new()
+	mesh.radius = 0.075
+	mesh.height = 0.44
+	mesh.radial_segments = 8
+	mesh.rings = 3
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color("96ecff")
 	material.emission_enabled = true
@@ -332,6 +443,8 @@ func capture_preview() -> void:
 	var flight_capture := "--capture-flight-preview" in OS.get_cmdline_user_args()
 	if flight_capture:
 		begin_flight()
+		player_health = player_max_health - 1
+		(pilot.get_node("VisualSlot") as NebulaVisualSlot).set_damage_fraction(float(player_health) / float(player_max_health))
 	Input.warp_mouse(Vector2(16, 704))
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	for i in range(60):
@@ -351,7 +464,8 @@ func configure_rtx() -> void:
 	for property in environment.get_property_list():
 		if property.name == "pathtracing_enabled":
 			fork_available = true
-	rtx_active = fork_available and rd != null and rd.has_feature(12) and bool(ProjectSettings.get_setting("iron_nebula/rendering/request_rtx", true)) and not "--raster-preview" in OS.get_cmdline_user_args()
+	var rtx_requested := "--enable-rtx" in OS.get_cmdline_user_args() or bool(ProjectSettings.get_setting("iron_nebula/rendering/request_rtx", false))
+	rtx_active = fork_available and rd != null and rd.has_feature(12) and rtx_requested and not "--raster-preview" in OS.get_cmdline_user_args()
 	if fork_available:
 		# DLSS runtime libraries are a separate vendor dependency. Use the explicit
 		# supported NONE denoiser until their availability is validated.
@@ -405,8 +519,21 @@ func fire_volley() -> void:
 			"velocity": direction * float(weapon["speed"]),
 			"damage": int(weapon["damage"]) + player_weapon_level - 1,
 			"scale": weapon["scale"],
+			"angle": angle,
 		})
+		shots_fired += 1
+	audio_system.play_effect(["pulse", "lance", "arc", "gatling", "beam"][weapon_mode], muzzle.global_position)
 	fire_clock = float(weapon["interval"])
+
+func award_enemy_kill(base_score: int, position: Vector3) -> void:
+	if chain_clock <= 0.0:
+		kill_chain = 0
+	kill_chain += 1
+	chain_clock = 4.0
+	var multiplier := mini(5, 1 + int((kill_chain - 1) / 3))
+	score += base_score * multiplier
+	combat_hud.show_event("TARGET BREAK   ·   ×%d SCORE   ·   CHAIN %02d" % [multiplier, kill_chain], Color("ffc66d") if multiplier > 1 else Color("58dcf4"))
+	audio_system.play_effect("explosion", position)
 
 func scaled_enemy_health(base_health: int) -> int:
 	return maxi(1, ceili(float(base_health) * DIFFICULTY_HEALTH[difficulty] * party_strength_multiplier()))
@@ -426,7 +553,34 @@ func spawn_boss(miniboss: bool) -> CharacterBody3D:
 	enemy.set_meta("phase", "ATTACK")
 	enemy.set_meta("phase_age", 0.0)
 	enemy.set_meta("fire_clock", 1.2)
+	var shield_shell := MeshInstance3D.new()
+	shield_shell.name = "PhaseShield"
+	var shield_mesh := SphereMesh.new()
+	shield_mesh.radius = 1.0
+	shield_mesh.height = 2.0
+	shield_mesh.radial_segments = 24
+	shield_mesh.rings = 12
+	shield_shell.mesh = shield_mesh
+	shield_shell.scale = Vector3(size.x * 0.66, size.y * 0.74, 0.18)
+	shield_shell.position.z = 0.38
+	var shield_material := StandardMaterial3D.new()
+	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	shield_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shield_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	shield_material.albedo_color = Color("59cfff", 0.16)
+	shield_material.metallic = 0.55
+	shield_material.roughness = 0.2
+	shield_material.emission_enabled = true
+	shield_material.emission = Color("2ab8ff")
+	shield_material.emission_energy_multiplier = 1.3
+	shield_shell.material_override = shield_material
+	shield_shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	shield_shell.visible = false
+	enemy.get_node("VisualSlot").add_child(shield_shell)
 	enemies.append(enemy)
+	if not miniboss:
+		audio_system.play_effect("boss", enemy.position)
+		combat_hud.show_event("HOSTILE SIGNATURE   ·   %s" % enemy.get_meta("boss_name"), Color("ff765f"))
 	return enemy
 
 func spawn_enemy_projectile(enemy: CharacterBody3D, boss: bool) -> void:
@@ -436,7 +590,7 @@ func spawn_enemy_projectile(enemy: CharacterBody3D, boss: bool) -> void:
 	if direction.length_squared() < 0.01:
 		direction = Vector3.LEFT
 	var speed: float = (12.0 if boss else 9.0) * party_attack_multiplier() * [0.88, 1.0, 1.12][difficulty]
-	enemy_shots.append({"position": enemy.position + Vector3(-1.6, 0, 0), "velocity": direction * speed})
+	enemy_shots.append({"position": enemy.position + Vector3(-1.6, 0, 0), "velocity": direction * speed, "angle": Vector2(direction.x, direction.y).angle()})
 
 func damage_player() -> void:
 	if player_invulnerability > 0.0:
@@ -446,25 +600,71 @@ func damage_player() -> void:
 		player_shield -= 1
 	else:
 		player_health -= 1
+	kill_chain = 0
+	chain_clock = 0.0
+	(pilot.get_node("VisualSlot") as NebulaVisualSlot).set_damage_fraction(float(player_health) / float(player_max_health))
+	audio_system.play_effect("damage", pilot.global_position)
+	combat_hud.show_event("HULL IMPACT   ·   COMBO LOST", Color("ff796d"))
 	if player_health <= 0:
-		player_health = player_max_health
-		player_shield = player_max_shield
-		pilot.position = Vector3(-13, 0, 0)
-		player_invulnerability = 2.5
+		player_lives -= 1
+		if player_lives <= 0:
+			game_over = true
+			player_health = 0
+			player_shield = 0
+			combat_hud.show_event("RUN COMPLETE   ·   FINAL SCORE %07d" % score, Color("ffc66d"))
+			show_flight_menu()
+		else:
+			player_health = player_max_health
+			player_shield = player_max_shield
+			pilot.position = Vector3(-13, 0, 0)
+			player_invulnerability = 2.5
+			(pilot.get_node("VisualSlot") as NebulaVisualSlot).set_damage_fraction(1.0)
 
 func spawn_pickup(position: Vector3, kind: String) -> void:
-	var pickup := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.36
-	mesh.height = 0.72
+	var pickup := Node3D.new()
+	pickup.name = "Pickup_%s" % kind.capitalize()
+	var icon := Sprite3D.new()
+	var texture_name: String = {
+		"health": "pickupRepair",
+		"shield": "pickupShield",
+		"weapon": "pickupWeapon",
+		"credits": "pickupCredits",
+	}.get(kind, "pickupDrone")
+	icon.texture = art(texture_name)
+	icon.pixel_size = 0.01
+	icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	icon.modulate = Color.WHITE
+	icon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var material := StandardMaterial3D.new()
 	var color: Color = {"health": Color("ff796e"), "shield": Color("67ddff"), "weapon": Color("ffd66e"), "credits": Color("96f28b")}.get(kind, Color.WHITE)
+	material.albedo_texture = icon.texture
 	material.albedo_color = color
 	material.emission_enabled = true
 	material.emission = color
-	material.emission_energy_multiplier = 2.5
-	mesh.material = material
-	pickup.mesh = mesh
+	material.emission_energy_multiplier = 0.55
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	material.alpha_scissor_threshold = 0.03
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	icon.material_override = material
+	var halo := MeshInstance3D.new()
+	var halo_mesh := TorusMesh.new()
+	halo_mesh.inner_radius = 0.27
+	halo_mesh.outer_radius = 0.33
+	halo_mesh.rings = 12
+	halo_mesh.ring_segments = 6
+	halo.mesh = halo_mesh
+	var halo_material := StandardMaterial3D.new()
+	halo_material.albedo_color = Color(color, 0.6)
+	halo_material.emission_enabled = true
+	halo_material.emission = color
+	halo_material.emission_energy_multiplier = 1.4
+	halo_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	halo.material_override = halo_material
+	halo.rotation.x = PI / 2.0
+	halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pickup.add_child(halo)
+	pickup.add_child(icon)
 	pickup.position = position
 	add_child(pickup)
 	pickups.append({"node": pickup, "kind": kind, "age": 0.0})
@@ -479,14 +679,20 @@ func grant_pickup(kind: String) -> void:
 		"weapon":
 			player_weapon_level = mini(7, player_weapon_level + amount)
 		"credits":
-			score += roundi(45.0 * party_strength_multiplier())
+			credits += roundi(45.0 * party_strength_multiplier())
+	if is_instance_valid(audio_system) and is_instance_valid(pilot):
+		audio_system.play_effect("pickup", pilot.global_position)
+	if is_instance_valid(combat_hud):
+		combat_hud.show_event("%s PICKUP   ·   SECURED" % kind.to_upper(), Color("ffc66d"))
 
 func update_pickups(delta: float) -> void:
 	for index in range(pickups.size() - 1, -1, -1):
 		var pickup: Dictionary = pickups[index]
-		var node: MeshInstance3D = pickup["node"]
+		var node: Node3D = pickup["node"]
 		pickup["age"] = float(pickup["age"]) + delta
 		node.position.x -= 4.0 * delta
+		node.position.y += sin(float(pickup["age"]) * 3.2) * delta * 0.2
+		node.rotate_y(delta * 0.72)
 		var difference: Vector3 = pilot.position - node.position
 		if difference.length() < 7.0:
 			node.position += difference.normalized() * minf(delta * 7.0, difference.length())
@@ -526,8 +732,52 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		elif event.physical_keycode == KEY_ESCAPE:
 			show_flight_menu()
 
+func _refresh_combat_hud(delta: float) -> void:
+	var current_boss: CharacterBody3D
+	for enemy in enemies:
+		if bool(enemy.get_meta("boss", false)) and not enemy.is_queued_for_deletion():
+			current_boss = enemy
+			break
+	var boss_status: Dictionary = {}
+	if current_boss != null:
+		boss_status = {
+			"boss_name": current_boss.get_meta("boss_name"),
+			"boss_phase": current_boss.get_meta("phase"),
+			"boss_health": current_boss.get_meta("health"),
+			"boss_max_health": current_boss.get_meta("max_health"),
+		}
+	var multiplier := mini(5, 1 + int(maxi(0, kill_chain - 1) / 3))
+	combat_hud.set_state({
+		"sector_name": BACKDROPS[sector].trim_prefix("space"),
+		"sector": sector,
+		"difficulty": ["ASSISTED", "STANDARD", "VETERAN"][difficulty],
+		"run_status": "CHAIN ×%d" % multiplier if kill_chain > 0 else "ARCADE SCORE ATTACK",
+		"score": score,
+		"combo": kill_chain,
+		"multiplier": multiplier,
+		"accuracy": roundi(100.0 * shots_hit / maxf(1.0, float(shots_fired))),
+		"health": player_health,
+		"max_health": player_max_health,
+		"shield": player_shield,
+		"max_shield": player_max_shield,
+		"lives": player_lives,
+		"credits": credits,
+		"weapon": WEAPONS[weapon_mode]["name"],
+		"weapon_index": weapon_mode,
+		"weapon_level": player_weapon_level,
+		"wave": maxi(1, wave_count),
+		"elapsed": "%02d:%02d" % [int(elapsed / 60.0), int(elapsed) % 60],
+		"boss_name": boss_status.get("boss_name", ""),
+		"boss_phase": boss_status.get("boss_phase", ""),
+		"boss_health": boss_status.get("boss_health", 0),
+		"boss_max_health": boss_status.get("boss_max_health", 1),
+	}, delta)
+
 func _physics_process(delta: float) -> void:
 	elapsed += delta
+	chain_clock = maxf(0.0, chain_clock - delta)
+	if chain_clock == 0.0:
+		kill_chain = 0
 	player_invulnerability = maxf(0.0, player_invulnerability - delta)
 	var axes := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_W)) - float(Input.is_physical_key_pressed(KEY_S)))
 	var pads := Input.get_connected_joypads()
@@ -565,6 +815,8 @@ func _physics_process(delta: float) -> void:
 			enemy.set_meta("fire_clock", randf_range(2.4, 4.0))
 			enemy.position = candidate
 			enemies.append(enemy)
+			spawned_enemies += 1
+			wave_count = 1 + int(spawned_enemies / 8)
 			spawn_clock = 1.1
 		else:
 			spawn_clock = 0.2
@@ -577,10 +829,7 @@ func _physics_process(delta: float) -> void:
 			var phase := boss_phase_at(phase_age)
 			enemy.set_meta("phase_age", phase_age)
 			if phase != enemy.get_meta("phase", "ATTACK"):
-				enemy.set_meta("phase", phase)
-				var hull := enemy.get_node("VisualSlot/HullSprite") as MeshInstance3D
-				var hull_material := hull.material_override as StandardMaterial3D
-				hull_material.emission = Color("63bfff") if phase == "SHIELD" else Color.WHITE
+				set_boss_phase(enemy, phase)
 			enemy.velocity = navigation.direction(enemy, Vector3(17, clampf(sin(elapsed * 0.9) * 8, -9, 9), 0), Engine.get_physics_frames()) * 4
 		else:
 			enemy.velocity = navigation.direction(enemy, Vector3(-28, clampf(enemy.position.y, -10, 10), 0), Engine.get_physics_frames()) * 5
@@ -602,6 +851,8 @@ func _physics_process(delta: float) -> void:
 		var ray := PhysicsRayQueryParameters3D.create(previous, shot.position, 2 | 4 | 8, [pilot.get_rid()])
 		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
 		if not hit.is_empty():
+			shots_hit += 1
+			audio_system.play_effect("impact", hit.position)
 			if hit.collider is RigidBody3D and hit.collider.has_meta("health"):
 				if space_world.damage_target(hit.collider, hit.position, int(shot["damage"]), shot.velocity):
 					score += 25
@@ -615,11 +866,11 @@ func _physics_process(delta: float) -> void:
 					navigation.forget(target)
 					target.queue_free()
 					if bool(target.get_meta("boss", false)):
-						score += 3000
+						award_enemy_kill(3000, target.global_position)
 						spawn_pickup(target.position, "health")
 						spawn_pickup(target.position + Vector3(0, 1, 0), "shield")
 					else:
-						score += 100
+						award_enemy_kill(100, target.global_position)
 						if randf() < 0.24:
 							spawn_pickup(target.position, ["health", "shield", "weapon", "credits"].pick_random())
 				else:
@@ -642,20 +893,14 @@ func _physics_process(delta: float) -> void:
 	update_pickups(delta)
 	for i in range(shots.size()):
 		var shot: Dictionary = shots[i]
-		projectile_mesh.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(shot["scale"]), shot["position"]))
+		var shot_basis := Basis(Vector3.FORWARD, float(shot["angle"]) - PI / 2.0).scaled_local(shot["scale"])
+		projectile_mesh.multimesh.set_instance_transform(i, Transform3D(shot_basis, shot["position"]))
 	projectile_mesh.multimesh.visible_instance_count = shots.size()
 	for i in range(enemy_shots.size()):
 		var shot: Dictionary = enemy_shots[i]
-		enemy_projectile_mesh.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * 0.9), shot["position"]))
+		var enemy_basis := Basis(Vector3.FORWARD, float(shot["angle"]) - PI / 2.0).scaled_local(Vector3(0.9, 0.9, 0.9))
+		enemy_projectile_mesh.multimesh.set_instance_transform(i, Transform3D(enemy_basis, shot["position"]))
 	enemy_projectile_mesh.multimesh.visible_instance_count = enemy_shots.size()
 	for i in range(backdrops.size()):
 		backdrops[i].position.y = sin(elapsed / 95) * 0.32
-	var current_boss: CharacterBody3D
-	for enemy in enemies:
-		if bool(enemy.get_meta("boss", false)) and not enemy.is_queued_for_deletion():
-			current_boss = enemy
-			break
-	var boss_status := ""
-	if current_boss != null:
-		boss_status = " | %s %s · %d/%d" % [current_boss.get_meta("boss_name"), current_boss.get_meta("phase"), current_boss.get_meta("health"), current_boss.get_meta("max_health")]
-	status.text = "ENGINE PREVIEW | %s | %s | %s LV %d | P%d · HP %d/%d · SH %d/%d | SCORE %d%s\nWASD / left stick · LMB / RT fire · 1-5 weapon · T tether %s · Tab sector · Esc flight deck" % [BACKDROPS[sector].to_upper(), "RTX (no denoiser)" if rtx_active else "RASTER", WEAPONS[weapon_mode]["name"], player_weapon_level, party_size, player_health, player_max_health, player_shield, player_max_shield, score, boss_status, "ON" if tethered else "OFF"]
+	_refresh_combat_hud(delta)

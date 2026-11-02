@@ -8,9 +8,11 @@ $release = Join-Path $staging 'IronNebula-Godot-win-x64.exe'
 $pack = [IO.Path]::ChangeExtension($release, '.pck')
 $archive = Join-Path $repo 'dist\IronNebula-Godot-win-x64.zip'
 
-& $build -ReleaseTemplate
-if ($LASTEXITCODE -ne 0) {
-    throw "Godot engine/template build failed with exit code $LASTEXITCODE."
+if (!(Test-Path -LiteralPath $editor) -or !(Test-Path -LiteralPath $template)) {
+    & $build -ReleaseTemplate
+    if ($LASTEXITCODE -ne 0) {
+        throw "Godot engine/template build failed with exit code $LASTEXITCODE."
+    }
 }
 if (!(Test-Path -LiteralPath $editor) -or !(Test-Path -LiteralPath $template)) {
     throw 'The pinned Godot editor and release template must both exist before exporting.'

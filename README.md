@@ -11,9 +11,10 @@ feature parity and release readiness are tracked separately.
   presentation. Release validation is recorded in the [AI handoff](AI_HANDOFF.md).
 - **Browser:** WebGL 2 game with solo play, optional online co-op and phone
   control. See the [browser guide](Web/README.md).
-- **Godot:** local 2.5D engine preview for visual and physics evaluation. It is
-  not a replacement for the complete desktop or browser game. See the
-  [Godot preview guide](Godot/README.md).
+- **Godot:** local 2.5D Pro-Arcade visual and physics preview with a combat HUD,
+  soundtrack, procedural 3D planetary backdrops and destructible space
+  objects. It is not a replacement for the complete desktop or browser game.
+  See the [Godot preview guide](Godot/README.md).
 
 The shared visual direction includes original sector art, readable combat
 effects and damage-responsive ship presentation. The Godot preview is developing

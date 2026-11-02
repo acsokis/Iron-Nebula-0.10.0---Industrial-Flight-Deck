@@ -1,6 +1,9 @@
 extends Node3D
 
 const PANORAMA_SHADER = preload("res://Godot/panorama_blend.gdshader")
+const PLANET_SHADER = preload("res://Godot/planet_surface.gdshader")
+const CLOUD_SHADER = preload("res://Godot/planet_clouds.gdshader")
+const ATMOSPHERE_SHADER = preload("res://Godot/planet_atmosphere.gdshader")
 const FIELD := Vector2(48.0, 27.0)
 const BACKDROPS := ["spaceFrontier", "spaceRift", "spaceInferno"]
 const PANORAMAS := ["frontier", "rift", "inferno"]
@@ -16,12 +19,18 @@ var drift_origins: Array[Vector3] = []
 var starfield: MultiMeshInstance3D
 var star_origins: Array[Vector3] = []
 var star_speeds: Array[float] = []
+var planet_surfaces: Array[ShaderMaterial] = []
+var planet_noise_textures: Array[ImageTexture] = []
+var planet_clouds: Array[MeshInstance3D] = []
+var planet_cloud_materials: Array[ShaderMaterial] = []
+var planet_atmospheres: Array[ShaderMaterial] = []
 var elapsed := 0.0
 var sector := 0
 
 func _ready() -> void:
 	_build_base()
 	_build_panorama()
+	_build_planets()
 	_build_starfield()
 	_build_drift_art()
 	set_sector(0)
@@ -88,11 +97,104 @@ func _build_starfield() -> void:
 		batch.set_instance_transform(index, Transform3D(Basis.from_scale(Vector3.ONE * size), point))
 		batch.set_instance_color(index, Color(0.55 + rng.randf() * 0.45, 0.72 + rng.randf() * 0.28, 1.0, 0.45 + rng.randf() * 0.55))
 
+func _build_planets() -> void:
+	var planet_data := [
+		{"name": "Aurelia", "position": Vector3(15.5, 6.8, -23.0), "radius": 6.4, "seed": 76231},
+		{"name": "Nysa", "position": Vector3(-19.0, -8.0, -29.0), "radius": 2.65, "seed": 19487},
+	]
+	for data in planet_data:
+		var planet := Node3D.new()
+		planet.name = String(data["name"])
+		planet.position = data["position"]
+		add_child(planet)
+		var planetary_map := _make_planet_noise_texture(int(data["seed"]))
+		planet_noise_textures.append(planetary_map)
+
+		var surface := MeshInstance3D.new()
+		surface.name = "Surface"
+		var sphere := SphereMesh.new()
+		sphere.radius = float(data["radius"])
+		sphere.height = sphere.radius * 2.0
+		sphere.radial_segments = 48
+		sphere.rings = 28
+		surface.mesh = sphere
+		var surface_material := ShaderMaterial.new()
+		surface_material.shader = PLANET_SHADER
+		surface_material.set_shader_parameter("planetary_map", planetary_map)
+		surface.material_override = surface_material
+		surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		planet.add_child(surface)
+		planet_surfaces.append(surface_material)
+
+		var clouds := MeshInstance3D.new()
+		clouds.name = "MovingClouds"
+		var cloud_sphere := SphereMesh.new()
+		cloud_sphere.radius = float(data["radius"]) * 1.014
+		cloud_sphere.height = cloud_sphere.radius * 2.0
+		cloud_sphere.radial_segments = 48
+		cloud_sphere.rings = 28
+		clouds.mesh = cloud_sphere
+		var cloud_material := ShaderMaterial.new()
+		cloud_material.shader = CLOUD_SHADER
+		cloud_material.set_shader_parameter("planetary_map", planetary_map)
+		clouds.material_override = cloud_material
+		clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		planet.add_child(clouds)
+		planet_clouds.append(clouds)
+		planet_cloud_materials.append(cloud_material)
+
+		var atmosphere := MeshInstance3D.new()
+		atmosphere.name = "Atmosphere"
+		var shell := SphereMesh.new()
+		shell.radius = float(data["radius"]) * 1.075
+		shell.height = shell.radius * 2.0
+		shell.radial_segments = 48
+		shell.rings = 28
+		atmosphere.mesh = shell
+		var atmosphere_material := ShaderMaterial.new()
+		atmosphere_material.shader = ATMOSPHERE_SHADER
+		atmosphere.material_override = atmosphere_material
+		atmosphere.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		planet.add_child(atmosphere)
+		planet_atmospheres.append(atmosphere_material)
+
+	set_sector(sector)
+
+func _make_planet_noise_texture(seed_value: int) -> ImageTexture:
+	const TEXTURE_WIDTH := 384
+	const TEXTURE_HEIGHT := 192
+	var terrain_noise := _planet_noise(seed_value, 2.5, 4)
+	var detail_noise := _planet_noise(seed_value + 73, 7.0, 3)
+	var cloud_noise := _planet_noise(seed_value + 149, 3.8, 4)
+	var image := Image.create(TEXTURE_WIDTH, TEXTURE_HEIGHT, false, Image.FORMAT_RGBA8)
+	for y in range(TEXTURE_HEIGHT):
+		var latitude := (float(y) + 0.5) / TEXTURE_HEIGHT * PI - PI * 0.5
+		for x in range(TEXTURE_WIDTH):
+			var longitude := (float(x) + 0.5) / TEXTURE_WIDTH * TAU
+			var direction := Vector3(cos(latitude) * cos(longitude), sin(latitude), cos(latitude) * sin(longitude))
+			var terrain := terrain_noise.get_noise_3d(direction.x, direction.y, direction.z) * 0.5 + 0.5
+			var detail := detail_noise.get_noise_3d(direction.x, direction.y, direction.z) * 0.5 + 0.5
+			var cloud := cloud_noise.get_noise_3d(direction.x, direction.y, direction.z) * 0.5 + 0.5
+			image.set_pixel(x, y, Color(terrain, detail, cloud))
+	var texture := ImageTexture.create_from_image(image)
+	return texture
+
+func _planet_noise(seed_value: int, frequency: float, octaves: int) -> FastNoiseLite:
+	var noise := FastNoiseLite.new()
+	noise.seed = seed_value
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = octaves
+	noise.frequency = frequency
+	noise.fractal_lacunarity = 2.0
+	noise.fractal_gain = 0.48
+	return noise
+
 func _build_drift_art() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 902741
 	for layer in range(CLOUDS.size()):
-		for index in range(7):
+		for index in range(5):
 			var visual := MeshInstance3D.new()
 			visual.name = "ParallaxDetail_%d_%d" % [layer, index]
 			var quad := QuadMesh.new()
@@ -132,6 +234,20 @@ func set_sector(value: int) -> void:
 	for tile in panorama_tiles:
 		var material := tile.material_override as ShaderMaterial
 		material.set_shader_parameter("panorama", panorama)
+	var surface_colors := [
+		[Color("102d42"), Color("568578"), Color("c5d5d8"), Color("53cafa")],
+		[Color("211d42"), Color("78728c"), Color("d2c9e8"), Color("bb8cff")],
+		[Color("401b24"), Color("a96743"), Color("edc6a1"), Color("ff765c")],
+	]
+	var colors: Array = surface_colors[sector]
+	for surface in planet_surfaces:
+		surface.set_shader_parameter("ocean_color", colors[0])
+		surface.set_shader_parameter("land_color", colors[1])
+		surface.set_shader_parameter("ice_color", colors[2])
+	for cloud_material in planet_cloud_materials:
+		cloud_material.set_shader_parameter("cloud_color", colors[2])
+	for atmosphere in planet_atmospheres:
+		atmosphere.set_shader_parameter("atmosphere_color", colors[3])
 
 func layer_count() -> int:
 	return 4
@@ -153,6 +269,11 @@ func _process(delta: float) -> void:
 		batch.set_instance_transform(index, Transform3D(batch.get_instance_transform(index).basis, point))
 	for index in range(drift_art.size()):
 		var origin := drift_origins[index]
-		var layer := floori(float(index) / 7.0)
+		var layer := floori(float(index) / 5.0)
 		origin.x = fposmod(drift_origins[index].x - elapsed * LAYER_SPEEDS[layer] + 42.0, 84.0) - 42.0
 		drift_art[index].position = origin
+	for index in range(planet_clouds.size()):
+		planet_clouds[index].rotation.y += delta * (0.008 if index == 0 else -0.013)
+		planet_cloud_materials[index].set_shader_parameter("cloud_time", elapsed)
+	for index in range(planet_surfaces.size()):
+		planet_surfaces[index].set_shader_parameter("cloud_time", elapsed)

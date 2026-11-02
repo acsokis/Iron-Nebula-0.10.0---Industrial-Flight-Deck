@@ -42,7 +42,18 @@ func run_checks() -> void:
 	check(arena.menu_overlay.visible and paused, "Flight deck opens in a paused, interactive menu")
 	check(arena.flight_button.text == "ENTER FLIGHT" and arena.exit_button.text == "EXIT PREVIEW", "Flight deck provides launch and exit actions")
 	arena.begin_flight()
+	await physics_frame
 	check(not paused and not arena.menu_overlay.visible, "Entering flight resumes the simulation")
+	check(arena.menu_overlay.get_child(0).get_child(1).get_child(0).get_child(0).get_child(5).text.contains("PRO-ARCADE"), "The default run is explicitly identified as the competitive arcade profile")
+	check(arena.combat_hud.score_label.text == "0000000" and arena.combat_hud.weapon_label.text.contains("PULSE"), "The cockpit HUD exposes live score and selected weapon")
+	check(arena.combat_hud.health_bar.value == 1.0 and arena.combat_hud.shield_bar.value > 0.0, "Hull and shield state have dedicated readable meters")
+	check(arena.combat_hud.reserve_label.text.contains("LIVES  03") and arena.combat_hud.reserve_label.text.contains("CR 00000"), "The cockpit HUD includes remaining lives and credits")
+	check(arena.audio_system.streams.size() >= 12 and arena.audio_system.music_player.stream != null, "Godot loads the desktop soundtrack and the complete gameplay sound set")
+	check(Engine.max_fps == 244 and ProjectSettings.get_setting("display/window/vsync/vsync_mode") == 0, "The preview targets low-latency frame pacing up to 244 FPS")
+	check(not arena.rtx_active and ProjectSettings.get_setting("iron_nebula/rendering/request_rtx") == false, "Raster rendering is the safe default; path tracing requires an explicit opt-in")
+	arena.set_upscaling_mode(1)
+	check(get_root().scaling_3d_mode == Viewport.SCALING_3D_MODE_FSR and is_equal_approx(get_root().scaling_3d_scale, 0.82), "FSR quality mode uses the native Godot FSR spatial upscaler")
+	arena.set_upscaling_mode(0)
 	check(arena.pilot is CharacterBody3D, "Flight uses a real 3D physics body")
 	check(arena.pilot.has_node("VisualSlot"), "Visual model stays separate from collision")
 	var pilot_slot = arena.pilot.get_node("VisualSlot")
@@ -54,12 +65,34 @@ func run_checks() -> void:
 		var frame_mesh := frame.mesh as QuadMesh
 		check(not frame.visible and frame.position.z < hull.position.z, "Undamaged hull hides its metallic frame")
 		check(frame_material != null and frame_material.shader == load("res://Godot/industrial_hull.gdshader"), "Metallic backing uses its panelled alloy shader")
-		check(frame_mesh.size.is_equal_approx(Vector2(7.1, 2.68) * 1.14), "Metallic backing follows and slightly extends beyond the hull silhouette")
+		check(frame_mesh.size.is_equal_approx(Vector2(7.1, 2.68) * 1.2), "Metallic backing follows and slightly extends beyond the hull silhouette")
 		pilot_slot.set_damage_fraction(0.75)
 		check(frame.visible, "Metallic frame appears as soon as the hull is damaged")
 		pilot_slot.set_damage_fraction(1.0)
 		check(not frame.visible, "Repair hides the metallic frame again")
 	check(arena.background_layers.layer_count() == 4 and arena.backdrops.size() == 3, "Sector scenery has four parallax depths and three panorama tiles")
+	check(arena.background_layers.planet_surfaces.size() == 2 and arena.background_layers.planet_cloud_materials.size() == 2 and arena.background_layers.planet_noise_textures.size() == 2, "Sector scenery contains two procedurally textured, atmosphere-shaded 3D planets")
+	check(arena.background_layers.planet_surfaces[0].shader == load("res://Godot/planet_surface.gdshader"), "Planets use the generated procedural surface shader")
+	check(arena.background_layers.planet_surfaces[0].get_shader_parameter("planetary_map") == arena.background_layers.planet_noise_textures[0], "Planet shaders use pre-generated seamless noise textures instead of per-pixel noise loops")
+	var test_boss: CharacterBody3D = arena.make_body("warden", Vector2(5.2, 3.8))
+	test_boss.set_meta("boss_name", "WARDEN TEST")
+	test_boss.set_meta("health", 50)
+	test_boss.set_meta("max_health", 50)
+	var phase_shell := MeshInstance3D.new()
+	phase_shell.name = "PhaseShield"
+	var phase_mesh := SphereMesh.new()
+	phase_mesh.radius = 1.0
+	phase_shell.mesh = phase_mesh
+	var phase_material := StandardMaterial3D.new()
+	phase_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	phase_material.albedo_color = Color("59cfff", 0.16)
+	phase_shell.material_override = phase_material
+	test_boss.get_node("VisualSlot").add_child(phase_shell)
+	arena.set_boss_phase(test_boss, "SHIELD")
+	check(phase_shell.visible and arena.combat_hud.event_label.text.contains("SHIELD"), "Boss shield phases have a visible 3D barrier and readable combat callout")
+	arena.set_boss_phase(test_boss, "DAMAGE")
+	check(not phase_shell.visible, "The boss barrier clears for the damage window")
+	test_boss.queue_free()
 	check(arena.space_world.orbiters.size() >= 3, "Procedural space includes a station and physical voxel obstacles")
 	var asteroid: RigidBody3D
 	for body in arena.space_world.orbiters:
@@ -67,16 +100,24 @@ func run_checks() -> void:
 			asteroid = body
 			break
 	check(asteroid != null, "A shootable voxel asteroid is present")
+	var station: RigidBody3D
+	for body in arena.space_world.orbiters:
+		if body.get_meta("station", false):
+			station = body
+			break
+	check(station != null and Vector2(station.position.x, station.position.y).distance_to(Vector2(15.5, 6.8)) > 10.4, "The foreground station does not obscure the distant planet")
 	if asteroid != null:
 		var health_before: int = asteroid.get_meta("health")
 		var cells_before: int = asteroid.get_meta("voxel_cells").size()
 		var rock_art := asteroid.get_node_or_null("RockArt") as Sprite3D
 		check(rock_art != null, "Asteroid voxel body carries the original detailed rock artwork")
+		check(asteroid.get_node_or_null("VoxelBatch_rock") is MultiMeshInstance3D, "Asteroid fracture cells use one optimized GPU batch")
+		check((asteroid.get_node("RockArt") as Sprite3D).material_override.get("transparency") == BaseMaterial3D.TRANSPARENCY_ALPHA, "Asteroid texture translucency reveals its destructible 3D voxel core")
 		arena.space_world.damage_target(asteroid, asteroid.global_position, 1, Vector3.LEFT)
 		check(int(asteroid.get_meta("health")) == health_before - 1, "Asteroid hits reduce physical-object health")
 		check(asteroid.get_meta("voxel_cells").size() < cells_before, "Asteroid hits visibly remove voxel cells")
 		if rock_art != null:
-			check(rock_art.modulate.a < 0.94, "Asteroid artwork erodes visibly as its voxel hull is damaged")
+			check(rock_art.modulate.a < 0.82, "Asteroid artwork erodes visibly as its voxel hull is damaged")
 	check(arena.boss_phase_at(0.0) == "ATTACK" and arena.boss_phase_at(6.0) == "SHIELD" and arena.boss_phase_at(9.0) == "DAMAGE", "Bosses cycle through attack, shield and damage phases")
 	check(arena.boss_damage_amount(2, "SHIELD") == 0 and arena.boss_damage_amount(2, "DAMAGE") == 3, "Boss shield blocks shots and damage windows amplify hits")
 	arena.party_size = 6
@@ -85,7 +126,13 @@ func run_checks() -> void:
 	arena.player_health = 1
 	arena.grant_pickup("health")
 	check(arena.player_health == 3, "Health pickups scale with the active party size")
+	arena.player_shield = 1
+	arena.grant_pickup("shield")
+	check(arena.player_shield == arena.player_max_shield, "Shield pickups scale with the active party size")
+	arena.grant_pickup("credits")
+	check(arena.credits == 63, "Party-size credit pickup amounts remain modest and visible")
 	check(arena.WEAPONS.size() == 5, "All five primary weapon modes are available")
+	check(arena.projectile_mesh.multimesh.mesh is CapsuleMesh, "Projectiles render as elongated, oriented 3D bolts rather than billboard dots")
 	for mode in range(arena.WEAPONS.size()):
 		arena.select_weapon(mode)
 		var before_shots: int = arena.shots.size()
@@ -155,6 +202,16 @@ func run_checks() -> void:
 	if asteroid != null:
 		check(int(asteroid.get_meta("health")) < asteroid_health_before_shots, "A swept player shot damages a physical asteroid")
 		check(asteroid.get_meta("voxel_cells").size() < asteroid_cells_before_shots, "Player fire removes asteroid voxels")
+		arena.space_world.damage_target(asteroid, asteroid.global_position, 100, Vector3.LEFT)
+		await process_frame
+		var fracture_count := 0
+		for body in arena.space_world.orbiters:
+			if body.has_meta("voxel_debris") and body.get_meta("voxel_debris"):
+				var shard := body.get_node_or_null("FractureShard") as MeshInstance3D
+				if shard != null and shard.mesh is PrismMesh:
+					fracture_count += 1
+		check(fracture_count > 0, "Destroyed asteroids shed spinning, collidable low-poly fracture shards")
+		check(not arena.space_world.spark_bursts.is_empty() and not arena.space_world.shock_rings.is_empty(), "Destruction adds bounded GPU sparks and a real 3D expanding shock ring")
 	if not arena.enemies.is_empty():
 		var ray_target: CharacterBody3D = arena.enemies[0]
 		ray_target.collision_layer = 2
@@ -189,10 +246,22 @@ func run_checks() -> void:
 	key(KEY_D, false)
 	check(arena.pilot.position.x < 23, "Solid world boundaries stop the pilot without transform clamping")
 	check(not arena.spawn_is_clear(arena.pilot.position, Vector2(7.1, 2.68)), "Spawner rejects occupied full-body volume")
+	arena.player_shield = 0
+	arena.player_health = 1
+	arena.player_lives = 1
+	arena.player_invulnerability = 0.0
+	arena.damage_player()
+	check(arena.game_over and arena.menu_overlay.visible and arena.flight_button.text == "START NEW RUN", "The final lost life ends a competitive run and offers a restart")
+	arena.begin_flight()
+	check(not arena.game_over and arena.player_lives == 3 and arena.player_health == arena.player_max_health and arena.player_shield == arena.player_max_shield and arena.score == 0 and arena.credits == 0 and not paused, "Restart resets score-attack resources and resumes a fresh run")
+	arena.audio_system.start_music()
+	arena.audio_system.stop_all()
+	check(not arena.audio_system.music_player.playing and arena.audio_system.streams.is_empty(), "Audio playback and stream references can be released for clean shutdown")
 	if failures.is_empty():
 		print("PASS: %d Godot checks (loading, menu, parallax, voxel damage, weapons, metallic hull frames, physics and model replacement)" % check_count)
 	else:
 		printerr("FAIL: %d of %d Godot checks failed" % [failures.size(), check_count])
 	arena.queue_free()
 	await process_frame
+	await create_timer(0.25).timeout
 	quit(0 if failures.is_empty() else 1)

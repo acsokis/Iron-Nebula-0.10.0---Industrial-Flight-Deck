@@ -24,6 +24,8 @@ rögzíti.
 - [ ] Projektgyökérbeli `RUN_GODOT_PREVIEW.bat` preview és editor módban
 - [ ] Betöltőképernyő és ipari repülési menü ellenőrizve
 - [ ] Többrétegű háttér, szektorváltás és eredeti díszítőgrafika ellenőrizve
+- [ ] Pro-Arcade HUD, score-attack újraindítás, hangsáv és térbeli effektek ellenőrizve
+- [ ] Procedurális bolygótextúrák, FSR térbeli skálázás és bossfázisok ellenőrizve
 - [ ] Hajó frame-je a sérüléskor megjelenik, javításkor eltűnik
 - [ ] Lövés eltávolít voxelcellákat, és fizikai törmelék keletkezik
 - [ ] `Godot/tests/gameplay_checks.gd` és `Godot/tests/smoke.gd` sikeres

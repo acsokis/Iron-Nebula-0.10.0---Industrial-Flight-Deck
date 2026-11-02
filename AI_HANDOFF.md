@@ -17,9 +17,9 @@ change or test in another implementation.
 
 ## Current working state
 
-- Working branch: `engine/godot-nvidia`; implementation commit:
-  `ed31f68c45fc4effc2662b2a4eadee09bcef127c` (pushed to the `contribution`
-  remote). Its parent baseline is `4d4547c`.
+- Working branch: `engine/godot-nvidia`; current committed baseline:
+  `0c70762`. The Godot, documentation and release-script changes from the
+  current work session are not committed yet.
 - Windows targets .NET 10 and includes damage-responsive metallic hull
   presentation and cross-platform gameplay refinements. Runtime source art and
   audio are present in `Assets/`; unused legacy sprites were removed. The
@@ -28,11 +28,13 @@ change or test in another implementation.
 - Browser and Godot cross-platform work is present in the project history.
   Godot remains a local visual/physics preview, not network co-op or full
   campaign parity.
-- Godot includes the themed loading flow and flight-deck menu, multi-depth
-  sector backgrounds, a damage-responsive hull frame, and destructible physical
-  station/asteroid scenery with bounded debris and effects.
-- Public project documentation was refreshed. `PROJECT_NOTES_o_privat.md` is
-  local-only and must not be committed, pushed or included in release packages.
+- Godot includes a themed loading flow, industrial flight-deck menu and
+  Pro-Arcade combat HUD; score chains, lives, credits, audio, five 3D weapon
+  profiles, boss phases, FSR spatial scaling, procedurally textured 3D planets,
+  multi-depth sector backgrounds, damage-responsive hull frames, and
+  destructible physical station/asteroid scenery with bounded debris.
+- Public project documentation was refreshed. `PROJECT_NOTES_o_privat.md` and
+  `CODEX_HANDOFF_o_privat.md` are local-only; never commit, push or package them.
 
 ## Verification completed
 
@@ -45,28 +47,37 @@ dotnet run --project Tools\VisualChecks\VisualChecks.csproj -c Release
 .\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --editor --quit
 .\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\gameplay_checks.gd
 .\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\smoke.gd
+.\PUBLISH_GODOT_PREVIEW.bat
 ```
 
 Latest results: Windows Release build succeeded with no warnings or errors;
 37 co-op transport/gameplay-rule checks and 20 visual/physics checks passed.
-Godot import passed, with 18 gameplay checks and 64 smoke checks passing. The
-flight-deck menu and gameplay were reviewed in Forward+ raster captures on an
-NVIDIA GeForce RTX 4080. Both release archives were extracted and launched
-successfully in isolated temporary directories on the development host.
+Godot import passed, with 18 gameplay checks and 88 smoke checks passing. A
+Forward+ raster capture confirmed the metallic player frame and planet/station
+composition. The engine HUD showed approximately 15 FPS during that capture;
+the requested 60 FPS floor is **not verified** and needs optimized-build
+profiling on recorded target hardware. The current Godot ZIP was rebuilt with
+only the executable and its resource pack, and its extracted package created a
+window and closed. Godot emitted generic `RefCounted` ObjectDB warnings on
+shutdown; no affected resource path was identified, so shutdown is not certified
+clean.
 
-The Windows ZIP contains one executable and 249 required image/audio assets;
-the Godot ZIP contains only its executable and resource pack. These checks do
-not prove physical controller compatibility, cross-network co-op, clean-machine
-installation, long-session stability or Windows rendered quality. The
-GitHub release is not published: the available API credential was rejected
-and the integrated browser is signed out. Publishing requires an authenticated
-GitHub session with release permissions.
+The existing Windows ZIP contains one executable and 249 required image/audio
+assets; it was not rebuilt in this work session because Windows runtime source
+was unchanged. The Godot ZIP contains only its executable and resource pack.
+These checks do not prove physical controller compatibility, cross-network
+co-op, clean-machine installation, long-session stability or Windows rendered
+quality. Neither archive has been published as a GitHub Release. Publishing
+requires an authenticated GitHub session with release permissions.
 
 ## Open work and constraints
 
+- Profile the optimized Godot release on target hardware and resolve the
+  measured frame-rate gap before claiming the 60 FPS target.
 - Complete Windows visual and physical-device review, including the metallic
   hull presentation.
-- Validate both archives on a clean Windows environment.
+- Validate both archives on a clean Windows environment and confirm graceful
+  shutdown, audio cleanup and sustained play.
 - Publish the built archives after authenticated GitHub release access is
   available; do not manually trigger GitHub Actions.
 - Run the browser checks if browser source or deployment settings change.

@@ -12,8 +12,9 @@ funkciói eltérnek; a teljes platformparitás még nem igazolt.
   [AI-átadás](AI_HANDOFF.md) rögzíti.
 - **Böngésző:** WebGL 2 megjelenítés, egyjátékos mód, választható online co-op
   és telefonos vezérlés. Részletek a [webes útmutatóban](Web/README.md).
-- **Godot:** helyben tesztelhető, 2.5D grafikai és fizikai preview; nem váltja ki
-  a teljes Windows- vagy böngészős játékot. Lásd a
+- **Godot:** helyi 2.5D Pro-Arcade grafikai és fizikai preview harci HUD-dal,
+  hangsávval, procedurális 3D bolygóháttérrel és rombolható űrobjektumokkal.
+  Nem váltja ki a teljes Windows- vagy böngészős játékot. Lásd a
   [Godot-útmutatót](Godot/README.md).
 
 A közös vizuális irány az eredeti szektorgrafikára, olvasható harci effektekre

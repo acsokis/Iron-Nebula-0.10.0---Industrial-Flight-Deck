@@ -1,12 +1,15 @@
 extends Node3D
 
 const SEED_VALUE = 87321
-const VOXEL_DEBRIS_LIMIT = 12
+const VOXEL_DEBRIS_LIMIT = 16
 const EFFECT_LIMIT = 36
+const SPARK_LIMIT = 12
 const WORLD_LAYER = 4
 var rng := RandomNumberGenerator.new()
 var orbiters: Array[RigidBody3D] = []
 var effects: Array[AnimatedSprite3D] = []
+var spark_bursts: Array[GPUParticles3D] = []
+var shock_rings: Array[Dictionary] = []
 var clock := 0.0
 var spawn_timer := 0.0
 var smoke_frames: SpriteFrames
@@ -16,8 +19,8 @@ var sector := 0
 func _ready() -> void:
 	rng.seed = int(ProjectSettings.get_setting("iron_nebula/world/seed", SEED_VALUE))
 	_build_effect_frames()
-	make_station(Vector3(11, 6, 0))
-	var reservations: Array[Vector3] = [Vector3(11, 6, 0), Vector3(-13, 0, 0)]
+	make_station(Vector3(11, -8, 0))
+	var reservations: Array[Vector3] = [Vector3(11, -8, 0), Vector3(-13, 0, 0)]
 	for index in range(12):
 		var candidate := Vector3(rng.randf_range(-6, 31), rng.randf_range(-11, 11), 0)
 		var free := true
@@ -36,12 +39,10 @@ func set_sector(value: int) -> void:
 		if not is_instance_valid(body) or body.is_queued_for_deletion():
 			continue
 		for cell in body.get_meta("voxel_cells", []):
-			if not is_instance_valid(cell) or not cell.get_meta("signal_accent", false):
+			if not cell is Dictionary or not cell.get("signal_accent", false):
 				continue
-			var voxel_mesh := cell.mesh as PrimitiveMesh
-			if voxel_mesh != null:
-				voxel_mesh.material = material(accent_color, true, float(cell.get_meta("metalness", 0.82)))
-				cell.set_meta("voxel_color", accent_color)
+			cell["color"] = accent_color
+		_rebuild_voxel_batches(body)
 
 func _build_effect_frames() -> void:
 	smoke_frames = _make_frames("damageSmoke", 3, 4, 17.0)
@@ -91,6 +92,8 @@ func spawn_hit_fx(world_position: Vector3) -> void:
 func spawn_destruction_fx(world_position: Vector3, size: float) -> void:
 	_play_effect(explosion_frames, world_position, clampf(size, 0.38, 1.35))
 	_play_effect(smoke_frames, world_position + Vector3(0, 0.18, 0), clampf(size * 0.9, 0.45, 1.5))
+	_spawn_sparks(world_position, 32, 9.0)
+	_spawn_shock_ring(world_position, size)
 
 func material(color: Color, emissive: bool = false, metalness: float = 0.18) -> StandardMaterial3D:
 	var result := StandardMaterial3D.new()
@@ -117,37 +120,78 @@ func _new_body(body_name: String, center: Vector3, health: int, mass_value: floa
 	body.set_meta("health", health)
 	body.set_meta("max_health", health)
 	body.set_meta("voxel_cells", [])
+	body.set_meta("voxel_batches", {})
 	body.set_meta("age", 0.0)
 	add_child(body)
 	orbiters.append(body)
 	return body
 
 func _add_voxel(body: RigidBody3D, local_position: Vector3, size: Vector3, color: Color, accent: bool = false, rounded: bool = false, metalness: float = 0.18) -> void:
-	var cell := MeshInstance3D.new()
-	if rounded:
-		var rock := SphereMesh.new()
-		rock.radius = maxf(size.x, maxf(size.y, size.z)) * 0.56
-		rock.height = rock.radius * 1.8
-		rock.radial_segments = 6
-		rock.rings = 3
-		rock.material = material(color, accent, metalness)
-		cell.mesh = rock
-	else:
-		var cube := BoxMesh.new()
-		cube.size = size
-		cube.material = material(color, accent, metalness)
-		cell.mesh = cube
-	cell.position = local_position
-	cell.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
-	cell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	cell.set_meta("voxel_size", maxf(size.x, maxf(size.y, size.z)))
-	cell.set_meta("voxel_color", color)
-	cell.set_meta("signal_accent", accent)
-	cell.set_meta("metalness", metalness)
-	body.add_child(cell)
+	var batch_key := "signal_sphere" if accent and rounded else "signal_block" if accent else "rock" if rounded else "metal"
 	var cells: Array = body.get_meta("voxel_cells", [])
-	cells.append(cell)
+	cells.append({
+		"position": local_position,
+		"size": size,
+		"color": color,
+		"signal_accent": accent,
+		"metalness": metalness,
+		"batch": batch_key,
+	})
 	body.set_meta("voxel_cells", cells)
+
+func _rebuild_voxel_batches(body: RigidBody3D) -> void:
+	var batches: Dictionary = body.get_meta("voxel_batches", {})
+	var grouped: Dictionary = {}
+	for cell: Dictionary in body.get_meta("voxel_cells", []):
+		var key: String = cell["batch"]
+		if not grouped.has(key):
+			grouped[key] = []
+		grouped[key].append(cell)
+	for key: String in grouped:
+		var entries: Array = grouped[key]
+		var batch_node := batches.get(key) as MultiMeshInstance3D
+		if batch_node == null:
+			batch_node = MultiMeshInstance3D.new()
+			batch_node.name = "VoxelBatch_" + key
+			var multi := MultiMesh.new()
+			multi.transform_format = MultiMesh.TRANSFORM_3D
+			multi.use_colors = true
+			if key == "rock" or key == "signal_sphere":
+				var sphere := SphereMesh.new()
+				sphere.radius = 0.5
+				sphere.height = 0.92
+				sphere.radial_segments = 8
+				sphere.rings = 4
+				multi.mesh = sphere
+			else:
+				multi.mesh = BoxMesh.new()
+			batch_node.multimesh = multi
+			var voxel_material := StandardMaterial3D.new()
+			voxel_material.vertex_color_use_as_albedo = true
+			voxel_material.roughness = 0.82 if key == "rock" or key == "signal_sphere" else 0.32
+			voxel_material.metallic = 0.08 if key == "rock" or key == "signal_sphere" else 0.78
+			if key.begins_with("signal"):
+				voxel_material.emission_enabled = true
+				voxel_material.emission = Color.WHITE
+				voxel_material.emission_energy_multiplier = 1.15
+			batch_node.material_override = voxel_material
+			batch_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			batch_node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			body.add_child(batch_node)
+			batches[key] = batch_node
+		var multi := batch_node.multimesh
+		multi.instance_count = entries.size()
+		for index in range(entries.size()):
+			var cell: Dictionary = entries[index]
+			var basis := Basis.from_scale(cell["size"])
+			if key == "rock" or key == "signal_sphere":
+				basis = basis.scaled_local(Vector3(0.56, 1.0, 0.56))
+			multi.set_instance_transform(index, Transform3D(basis, cell["position"]))
+			multi.set_instance_color(index, cell["color"])
+	for key: String in batches:
+		if not grouped.has(key):
+			(batches[key] as MultiMeshInstance3D).multimesh.instance_count = 0
+	body.set_meta("voxel_batches", batches)
 
 func _add_collision(body: RigidBody3D, shape: Shape3D, local_position: Vector3 = Vector3.ZERO) -> void:
 	var collision := CollisionShape3D.new()
@@ -172,6 +216,7 @@ func make_station(center: Vector3) -> RigidBody3D:
 	var station_shape := BoxShape3D.new()
 	station_shape.size = Vector3(7.5, 5.6, 1.4)
 	_add_collision(station, station_shape)
+	_rebuild_voxel_batches(station)
 	station.set_meta("station", true)
 	station.set_meta("sector_color", sector)
 	station.linear_velocity = Vector3(-0.2, 0, 0)
@@ -200,19 +245,19 @@ func make_orbiter(center: Vector3, wreck: bool) -> RigidBody3D:
 	var health := ceili(radius * (8.0 if wreck else 7.0))
 	var body := _new_body("Wreck" if wreck else "VoxelAsteroid", center, health, radius * radius * 9.0)
 	_make_asteroid_voxels(body, radius, wreck)
+	_rebuild_voxel_batches(body)
 	var artwork := Sprite3D.new()
 	artwork.name = "RockArt"
 	artwork.texture = load("res://Web/public/assets/%s.webp" % ("rock" if wreck else "rock2")) as Texture2D
 	artwork.pixel_size = 0.01
 	artwork.scale = Vector3.ONE * radius * 0.39
 	artwork.position.z = 1.25
-	artwork.modulate = Color(1.0, 1.0, 1.0, 0.94)
+	artwork.modulate = Color(1.0, 1.0, 1.0, 0.82)
 	artwork.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var artwork_material := StandardMaterial3D.new()
 	artwork_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	artwork_material.albedo_texture = artwork.texture
-	artwork_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	artwork_material.alpha_scissor_threshold = 0.025
+	artwork_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	artwork_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	artwork.material_override = artwork_material
 	body.add_child(artwork)
@@ -226,21 +271,103 @@ func make_orbiter(center: Vector3, wreck: bool) -> RigidBody3D:
 	body.angular_velocity.z = rng.randf_range(-0.24, 0.24)
 	return body
 
-func _spawn_voxel_debris(world_position: Vector3, local_cell: Vector3, velocity: Vector3, color: Color, scale: float) -> void:
-	if orbiters.size() >= 42:
+func _spawn_voxel_debris(world_position: Vector3, velocity: Vector3, color: Color, scale: float) -> void:
+	if orbiters.size() >= 48:
 		return
 	var chunk := _new_body("VoxelDebris", world_position, 1, 0.45)
 	var size := maxf(0.12, scale)
-	_add_voxel(chunk, Vector3.ZERO, Vector3.ONE * size, color, false, true, 0.06)
-	var shape := BoxShape3D.new()
-	shape.size = Vector3.ONE * size
-	_add_collision(chunk, shape)
+	var shard := MeshInstance3D.new()
+	shard.name = "FractureShard"
+	var mesh := PrismMesh.new()
+	mesh.size = Vector3(size * 1.35, size, size * 0.82)
+	mesh.material = material(color, false, 0.08)
+	shard.mesh = mesh
+	shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chunk.add_child(shard)
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = PackedVector3Array([
+		Vector3(-0.5, -0.5, -0.5), Vector3(0.5, -0.5, -0.5), Vector3(0.0, 0.5, -0.5),
+		Vector3(-0.5, -0.5, 0.5), Vector3(0.5, -0.5, 0.5), Vector3(0.0, 0.5, 0.5),
+	])
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	collision.scale = Vector3.ONE * size
+	chunk.add_child(collision)
 	chunk.collision_mask = 1 | 2
-	chunk.position += local_cell
 	chunk.set_meta("voxel_debris", true)
 	chunk.set_meta("lifetime", 8.0)
 	chunk.linear_velocity = velocity
-	chunk.angular_velocity.z = rng.randf_range(-2.2, 2.2)
+	chunk.angular_velocity = Vector3(rng.randf_range(-2.2, 2.2), rng.randf_range(-2.2, 2.2), rng.randf_range(-2.2, 2.2))
+
+func _spawn_sparks(world_position: Vector3, count: int, speed: float) -> void:
+	spark_bursts = spark_bursts.filter(func(burst: GPUParticles3D) -> bool: return is_instance_valid(burst) and not burst.is_queued_for_deletion())
+	if spark_bursts.size() >= SPARK_LIMIT:
+		return
+	var burst := GPUParticles3D.new()
+	burst.name = "3DSparkBurst"
+	burst.amount = count
+	burst.lifetime = 0.65
+	burst.one_shot = true
+	burst.explosiveness = 0.94
+	burst.position = world_position
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = 0.14
+	process.direction = Vector3(0.0, 0.0, 1.0)
+	process.spread = 180.0
+	process.initial_velocity_min = speed * 0.4
+	process.initial_velocity_max = speed
+	process.gravity = Vector3(0.0, -0.15, 0.0)
+	process.damping_min = 1.4
+	process.damping_max = 2.4
+	process.scale_min = 0.035
+	process.scale_max = 0.095
+	process.color = Color("8feaff")
+	burst.process_material = process
+	var spark := SphereMesh.new()
+	spark.radius = 0.055
+	spark.height = 0.11
+	spark.radial_segments = 6
+	spark.rings = 3
+	var spark_material := StandardMaterial3D.new()
+	spark_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_material.albedo_color = Color("a7f2ff")
+	spark_material.emission_enabled = true
+	spark_material.emission = Color("43caff")
+	spark_material.emission_energy_multiplier = 3.2
+	spark.material = spark_material
+	burst.draw_pass_1 = spark
+	burst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	burst.finished.connect(burst.queue_free)
+	add_child(burst)
+	burst.emitting = true
+	spark_bursts.append(burst)
+
+func _spawn_shock_ring(world_position: Vector3, size: float) -> void:
+	if shock_rings.size() >= 8:
+		return
+	var ring := MeshInstance3D.new()
+	ring.name = "3DShockRing"
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.035
+	torus.outer_radius = 0.065
+	torus.rings = 16
+	torus.ring_segments = 8
+	ring.mesh = torus
+	ring.position = world_position
+	ring.rotation.x = PI / 2.0
+	ring.scale = Vector3.ONE * clampf(size, 0.4, 1.3)
+	var ring_material := StandardMaterial3D.new()
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.albedo_color = Color("8feaff", 0.88)
+	ring_material.emission_enabled = true
+	ring_material.emission = Color("43caff")
+	ring_material.emission_energy_multiplier = 2.4
+	ring.material_override = ring_material
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ring)
+	shock_rings.append({"node": ring, "material": ring_material, "age": 0.0, "scale": ring.scale.x})
 
 func damage_target(target: RigidBody3D, impact_position: Vector3, damage: int, impulse: Vector3) -> bool:
 	if not is_instance_valid(target) or target.is_queued_for_deletion() or not target.has_meta("health"):
@@ -251,24 +378,21 @@ func damage_target(target: RigidBody3D, impact_position: Vector3, damage: int, i
 		var closest_index := 0
 		var closest_distance := INF
 		for index in range(cells.size()):
-			var cell := cells[index] as MeshInstance3D
-			if not is_instance_valid(cell) or cell.is_queued_for_deletion():
-				continue
-			var distance := cell.position.distance_squared_to(local_impact)
+			var cell: Dictionary = cells[index]
+			var distance: float = cell["position"].distance_squared_to(local_impact)
 			if distance < closest_distance:
 				closest_distance = distance
 				closest_index = index
-		var removed := cells.pop_at(closest_index) as MeshInstance3D
-		if is_instance_valid(removed):
-			removed.queue_free()
+		cells.remove_at(closest_index)
 		target.set_meta("voxel_cells", cells)
+		_rebuild_voxel_batches(target)
 	target.apply_impulse(impulse.normalized() * 0.08, target.to_local(impact_position))
 	var health := int(target.get_meta("health")) - maxi(1, damage)
 	target.set_meta("health", health)
 	var artwork := target.get_node_or_null("RockArt") as Sprite3D
 	if artwork != null:
 		var maximum_health := float(target.get_meta("max_health", 1))
-		artwork.modulate.a = clampf(0.28 + 0.72 * float(health) / maximum_health, 0.0, 1.0)
+		artwork.modulate.a = clampf(0.86 * float(health) / maximum_health, 0.0, 0.86)
 	spawn_hit_fx(impact_position)
 	if health > 0:
 		return false
@@ -276,16 +400,14 @@ func damage_target(target: RigidBody3D, impact_position: Vector3, damage: int, i
 	var base_velocity := target.linear_velocity + impulse.normalized() * 1.8
 	var drop_count := mini(VOXEL_DEBRIS_LIMIT, remaining.size())
 	for index in range(drop_count):
-		var cell := remaining[index] as MeshInstance3D
-		if not is_instance_valid(cell) or cell.is_queued_for_deletion():
-			continue
-		var cell_position := target.to_global(cell.position)
-		var cell_size := float(cell.get_meta("voxel_size", 0.3))
+		var cell: Dictionary = remaining[index]
+		var cell_position: Vector3 = target.to_global(cell["position"])
+		var cell_size: float = maxf(cell["size"].x, maxf(cell["size"].y, cell["size"].z))
 		var outward := (cell_position - impact_position).normalized()
 		if outward.length_squared() < 0.01:
 			outward = Vector3.UP
-		var tint: Color = cell.get_meta("voxel_color", Color("65747c"))
-		_spawn_voxel_debris(cell_position, Vector3.ZERO, base_velocity + outward * rng.randf_range(1.0, 4.0), tint, cell_size * 0.78)
+		var tint: Color = cell["color"]
+		_spawn_voxel_debris(cell_position, base_velocity + outward * rng.randf_range(1.0, 4.0), tint, cell_size * 0.78)
 	if drop_count == 0 and target.get_meta("voxel_debris", false):
 		_play_effect(smoke_frames, impact_position, 0.34)
 	else:
@@ -305,6 +427,18 @@ func _physics_process(delta: float) -> void:
 			body.queue_free()
 		elif body.position.x < -34:
 			body.queue_free()
+	for index in range(shock_rings.size() - 1, -1, -1):
+		var ring_state: Dictionary = shock_rings[index]
+		ring_state["age"] = float(ring_state["age"]) + delta
+		var age: float = float(ring_state["age"])
+		if age >= 0.58 or not is_instance_valid(ring_state["node"]):
+			if is_instance_valid(ring_state["node"]):
+				(ring_state["node"] as MeshInstance3D).queue_free()
+			shock_rings.remove_at(index)
+			continue
+		var ring := ring_state["node"] as MeshInstance3D
+		ring.scale = Vector3.ONE * (float(ring_state["scale"]) + age * 3.2)
+		(ring_state["material"] as StandardMaterial3D).albedo_color.a = 0.88 * (1.0 - age / 0.58)
 	orbiters = orbiters.filter(func(body: RigidBody3D) -> bool: return is_instance_valid(body) and not body.is_queued_for_deletion())
 	if spawn_timer <= 0.0 and orbiters.size() < 26:
 		var candidate := Vector3(30, rng.randf_range(-11, 11), 0)

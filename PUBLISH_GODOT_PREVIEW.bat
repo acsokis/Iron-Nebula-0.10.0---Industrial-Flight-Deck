@@ -6,4 +6,4 @@ if errorlevel 1 (
  echo Godot release publish failed.
  exit /b 1
 )
-echo Godot single-file release created at dist\IronNebula-Godot-win-x64.exe
+echo Godot release archive created at dist\IronNebula-Godot-win-x64.zip

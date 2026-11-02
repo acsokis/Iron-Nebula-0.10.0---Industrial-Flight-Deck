@@ -6,9 +6,10 @@ retain implementation details.
 
 ## Current development
 
-- **Godot preview:** includes an industrial flight-deck menu, multi-depth sector
-  scenery, voxel-cell damage, bounded physical debris and atlas-based impact
-  effects. Loading, sector changes and hull presentation pass automated checks.
+- **Godot preview:** includes a Pro-Arcade HUD and score-attack loop, audio,
+  spatial FSR options, textured 3D planets, boss phases, damage-responsive hull
+  presentation and physical voxel debris. Automated gameplay and smoke checks
+  pass; rendered performance remains hardware-dependent.
 - **Browser:** provides the existing WebGL 2 game, optional co-op and mobile
   control, with improved cooperative progression and combat presentation.
 - **Windows:** targets .NET 10 and includes damage-responsive metallic hull

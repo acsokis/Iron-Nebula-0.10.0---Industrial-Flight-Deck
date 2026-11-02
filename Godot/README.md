@@ -26,18 +26,25 @@ the supported local entry point.
 ## Preview scope
 
 - Original sector panoramas, atmospheric and star layers, and drifting foreground
-  asteroid artwork.
+  asteroid artwork, plus two procedurally textured 3D planets with animated
+  cloud layers and atmospheres.
+- A Pro-Arcade score-attack run with a score chain, accuracy, lives, credits,
+  wave, weapon level, boss health and readable attack/shield/damage phases.
+- A multi-panel combat HUD, the project soundtrack and spatial combat effects.
+- Five 3D projectile profiles, asset-based pickup visuals and physical,
+  destructible station, asteroid and wreck objects.
 - A metallic hull frame that follows the ship texture silhouette and appears
-  during hull damage.
-- A physical modular station and destructible asteroid/wreck objects. Weapon hits
-  remove voxel cells; destroyed objects release bounded debris.
-- Atlas-based impact and destruction effects, keyboard/controller movement and
-  the local weapon preview.
-- An optional NVIDIA path-tracing path with a Forward+ raster fallback.
+  as hull damage begins; both player and enemy ships use the damage presentation.
+- Keyboard, mouse and controller input, plus an adjustable 3D upscaling mode:
+  native rendering, AMD FSR 1 Quality or AMD FSR 1 Performance.
+- Forward+ raster rendering by default. On a compatible NVIDIA build, pass
+  `-- --enable-rtx` to the root launcher to opt into path tracing.
 
 This preview does not provide the full campaign, online co-op, desktop save
 compatibility or confirmed parity with the browser and Windows implementations.
-Rendering and controller support must be assessed on the target hardware.
+FSR is spatial upscaling; frame generation is not integrated. The 244 FPS
+setting is an upper cap, not a minimum or a performance guarantee. Rendering,
+frame rate and controller support must be assessed on target hardware.
 
 ## Verification
 
@@ -47,9 +54,10 @@ Rendering and controller support must be assessed on the target hardware.
 .\.engine\godot-nvidia\bin\godot.windows.editor.x86_64.console.exe --headless --path . --script Godot\tests\smoke.gd
 ```
 
-The smoke check covers menu and loading state, sector selection, weapon firing,
-ship damage presentation and physical asteroid damage. Headless checks do not
-validate image quality or hardware behavior.
+The smoke check covers menu and loading state, Pro-Arcade HUD and run restart,
+sound assets, planetary textures, sector selection, weapon firing, boss phases,
+ship damage presentation, physical asteroid damage and debris. Headless checks
+do not validate image quality, sound mixing, frame rate or hardware behavior.
 
 For local visual review, append `-- --capture-preview` to capture the menu, or
 `-- --raster-preview --capture-flight-preview` to capture gameplay in raster
