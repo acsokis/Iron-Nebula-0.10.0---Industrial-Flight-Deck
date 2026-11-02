@@ -26,7 +26,7 @@ See [Co-op setup and validation](COOP_SUPPORT.md) for controls, Internet connect
 requirements and the first-alpha limitations. Smooth mouse flight and controller
 icons remain supported. Co-op does not overwrite solo saves/high scores.
 
-**Alpha 0.9.12 — Online Co-op** · Windows desktop · C# / .NET 8 / MonoGame WindowsDX
+**Alpha 0.9.12 — Online Co-op** · Windows desktop · C# / .NET 10 / MonoGame WindowsDX
 
 A saját fejlesztésű, vízszintesen scrollozó sci-fi shoot ’em up játék. Három szektor, öt váltható és fejleszthető primary weapon, minibossok és főbossok, szektorvégi shop, mentés/Continue, billentyűzet-, egér- és Xbox-kompatibilis kontrollerkezelés.
 
@@ -37,10 +37,10 @@ A saját fejlesztésű, vízszintesen scrollozó sci-fi shoot ’em up játék. 
 
 ## Indítás Windowson
 
-1. Telepítsd a **.NET 8 SDK-t**.
+1. Telepítsd a **.NET 10 SDK-t**.
 2. A teljes forrásprojekt gyökeréből futtasd a `BUILD_WINDOWS.bat` fájlt.
-3. Kiadáshoz használd a `PUBLISH_WINDOWS.bat` parancsfájlt. Ez a self-contained x64 mappakiadást a `dist/IronNebula-win-x64/` alá teszi, ellenőrzi a szükséges képeket, SHA-256 ellenőrzőösszeget ír, és nem indítja el automatikusan a játékot. Az EXE, a függőségei és az `Assets/` együtt maradjanak.
-4. A teljes runtime-képanyag és a hanganyag az `Assets/` alatt legyen. Az eredeti fejlesztő megerősítette a `Propulsive Peak` terjesztési engedélyét; az MP3 és a streamelt WAV is bekerül a Windows kiadási csomagba.
+3. Kiadáshoz használd a `PUBLISH_WINDOWS.bat` parancsfájlt. Ez a self-contained x64 játékot és a futásidejű asseteket egyetlen `dist/IronNebula-win-x64.zip` letöltésbe csomagolja, ellenőrzi a kötelező artworköt és hangsávokat, és nem indítja el automatikusan a játékot.
+4. Kicsomagolás után az `IronNebula.exe` mellett az `Assets/` mappát is tartsd meg. Az eredeti fejlesztő megerősítette a `Propulsive Peak` terjesztési engedélyét; az MP3 és a streamelt WAV is része a kiadásnak.
 
 A projekt Windowsra készült; a fő projektfájl: `IronNebula.csproj`. A MonoGame-csomag a projektben rögzített verzióval áll vissza.
 

@@ -1,19 +1,23 @@
 # IRON NEBULA — Windows desktop Alpha 0.9.12
 
-A Windows kiadás C# / .NET 8 / MonoGame WindowsDX alapú. A projekt három szektort,
+A Windows kiadás C# / .NET 10 / MonoGame WindowsDX alapú. A projekt három szektort,
 öt primary fegyvert, mentést, shopot, kontrollerkezelést és 2–6 fős Online/LAN
 kooperatív módot tartalmaz.
 
 ## Fordítás és publikálás
 
 - Forrásfordítás: `BUILD_WINDOWS.bat`.
-- Self-contained Windows x64 mappakiadás: `PUBLISH_WINDOWS.bat`.
-- Kimenet: `dist/IronNebula-win-x64/`; az `IronNebula.exe`, a függőségei és az
-  `Assets/` mappa együtt szükségesek.
-- A publikálás ellenőrzi a kötelező artwork fájlokat, SHA-256 ellenőrzőösszeget
-  készít az EXE-ről, és nem indítja el automatikusan a játékot.
+- Self-contained Windows x64 kiadás egyetlen ZIP-letöltésként:
+  `PUBLISH_WINDOWS.bat`.
+- Kimenet: `dist/IronNebula-win-x64.zip`; kicsomagolás után az
+  `IronNebula.exe` és az `Assets/` mappa együtt szükséges.
+- A publikálás ellenőrzi a kötelező artwork- és hangfájlokat, és nem indítja el
+  automatikusan a játékot.
 - Az eredeti fejlesztő megerősítette a `Propulsive Peak` terjesztési engedélyét;
   az MP3 és a streamelt WAV is része a Windows kiadásnak.
+
+## Indítás
+Windows: `BUILD_WINDOWS.bat`. .NET 10 SDK szükséges.
 
 ## Automatizált ellenőrzések
 

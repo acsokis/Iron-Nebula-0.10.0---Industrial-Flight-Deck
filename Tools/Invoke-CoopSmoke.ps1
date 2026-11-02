@@ -1,7 +1,7 @@
 param([int]$Port=28779,[switch]$VisualClient)
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
-$executable=Join-Path $projectRoot 'bin\Release\net8.0-windows\win-x64\IronNebula.exe'
+$executable=Join-Path $projectRoot 'bin\Release\net10.0-windows\win-x64\IronNebula.exe'
 if(!(Test-Path -LiteralPath $executable)) { throw 'Build the Release game before running this check.' }
 $reportRoot=Join-Path $projectRoot ('bin\coop-smoke-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $reportRoot | Out-Null

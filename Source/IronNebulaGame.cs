@@ -164,6 +164,12 @@ public sealed partial class IronNebulaGame : Game
         InactiveSleepTime=TimeSpan.FromMilliseconds(5);
     }
 
+    protected override void Initialize()
+    {
+        base.Initialize();
+        WindowsWindowTheme.ApplyDarkTitleBar(Window.Handle);
+    }
+
     protected override void LoadContent()
     {
         _batch=new SpriteBatch(GraphicsDevice);
