@@ -8,6 +8,9 @@ const ProceduralSpace = preload("res://Godot/procedural_space.gd")
 const BACKDROPS = ["spaceFrontier", "spaceRift", "spaceInferno"]
 const FIELD = Vector2(48, 27)
 const SHOT_LIMIT = 512
+const PARTY_LIMIT = 6
+const DIFFICULTY_HEALTH = [0.78, 1.0, 1.32]
+const DIFFICULTY_FIRE_RATE = [0.9, 1.0, 1.1]
 const WEAPONS := [
 	{"name": "PULSE", "interval": 0.10, "speed": 38.0, "damage": 1, "angles": [0.0], "scale": Vector3.ONE},
 	{"name": "LANCE", "interval": 0.32, "speed": 52.0, "damage": 2, "angles": [0.0], "scale": Vector3(1.8, 0.75, 0.75)},
@@ -23,14 +26,27 @@ var status: Label
 var backdrops: Array[Node3D] = []
 var scenery: Array[Node3D] = []
 var shots: Array[Dictionary] = []
+var enemy_shots: Array[Dictionary] = []
+var pickups: Array[Dictionary] = []
 var enemies: Array[CharacterBody3D] = []
 var projectile_mesh: MultiMeshInstance3D
+var enemy_projectile_mesh: MultiMeshInstance3D
 var elapsed := 0.0
 var fire_clock := 0.0
 var spawn_clock := 0.0
 var weapon_mode := 0
 var sector := 0
 var score := 0
+var party_size := 1
+var difficulty := 1
+var player_health := 4
+var player_max_health := 4
+var player_shield := 2
+var player_max_shield := 3
+var player_invulnerability := 0.0
+var player_weapon_level := 1
+var miniboss_spawned := false
+var boss_spawned := false
 var tethered := true
 var rtx_active := false
 var navigation = FlightNavigation.new()
@@ -38,7 +54,37 @@ var navigation = FlightNavigation.new()
 func art(name: String) -> Texture2D:
 	return load("res://Web/public/assets/%s.webp" % name) as Texture2D
 
+func parse_run_options() -> void:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--party-size="):
+			party_size = clampi(int(argument.trim_prefix("--party-size=")), 1, PARTY_LIMIT)
+		elif argument.begins_with("--difficulty="):
+			difficulty = clampi(int(argument.trim_prefix("--difficulty=")), 0, 2)
+
+func party_strength_multiplier() -> float:
+	return 1.0 + 0.08 * (party_size - 1)
+
+func party_attack_multiplier() -> float:
+	return 1.0 + 0.025 * (party_size - 1)
+
+func party_pickup_amount(base_amount: int = 1) -> int:
+	return base_amount + int((party_size - 1) / 4)
+
+func boss_phase_at(phase_age: float) -> String:
+	var phase_time := fposmod(maxf(0.0, phase_age), 13.0)
+	if phase_time < 6.0:
+		return "ATTACK"
+	if phase_time < 9.0:
+		return "SHIELD"
+	return "DAMAGE"
+
+func boss_damage_amount(damage: int, phase: String) -> int:
+	if phase == "SHIELD":
+		return 0
+	return ceili(float(damage) * (1.5 if phase == "DAMAGE" else 1.0))
+
 func _ready() -> void:
+	parse_run_options()
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	camera.fov = rad_to_deg(2 * atan(FIELD.y / 120))
@@ -100,23 +146,10 @@ func _ready() -> void:
 	muzzle.name = "Muzzle"
 	muzzle.position.x = 3.2
 	pilot.add_child(muzzle)
-	projectile_mesh = MultiMeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.12
-	mesh.height = 0.24
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color("96ecff")
-	material.emission_enabled = true
-	material.emission = Color("43caff")
-	material.emission_energy_multiplier = 4
-	mesh.material = material
-	var batch := MultiMesh.new()
-	batch.transform_format = MultiMesh.TRANSFORM_3D
-	batch.mesh = mesh
-	batch.instance_count = SHOT_LIMIT
-	batch.visible_instance_count = 0
-	projectile_mesh.multimesh = batch
+	projectile_mesh = create_projectile_batch(Color("43caff"))
 	add_child(projectile_mesh)
+	enemy_projectile_mesh = create_projectile_batch(Color("ff785d"))
+	add_child(enemy_projectile_mesh)
 	var hud := CanvasLayer.new()
 	add_child(hud)
 	status = Label.new()
@@ -129,6 +162,25 @@ func _ready() -> void:
 	hud.add_child(status)
 	if "--capture-preview" in OS.get_cmdline_user_args():
 		capture_preview.call_deferred()
+
+func create_projectile_batch(glow: Color) -> MultiMeshInstance3D:
+	var instance := MultiMeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.12
+	mesh.height = 0.24
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color("96ecff")
+	material.emission_enabled = true
+	material.emission = glow
+	material.emission_energy_multiplier = 4
+	mesh.material = material
+	var batch := MultiMesh.new()
+	batch.transform_format = MultiMesh.TRANSFORM_3D
+	batch.mesh = mesh
+	batch.instance_count = SHOT_LIMIT
+	batch.visible_instance_count = 0
+	instance.multimesh = batch
+	return instance
 
 func capture_preview() -> void:
 	for i in range(60):
@@ -197,10 +249,100 @@ func fire_volley() -> void:
 		shots.append({
 			"position": muzzle.global_position,
 			"velocity": direction * float(weapon["speed"]),
-			"damage": int(weapon["damage"]),
+			"damage": int(weapon["damage"]) + player_weapon_level - 1,
 			"scale": weapon["scale"],
 		})
 	fire_clock = float(weapon["interval"])
+
+func scaled_enemy_health(base_health: int) -> int:
+	return maxi(1, ceili(float(base_health) * DIFFICULTY_HEALTH[difficulty] * party_strength_multiplier()))
+
+func spawn_boss(miniboss: bool) -> CharacterBody3D:
+	var texture: String = "warden" if miniboss else String(["sentinel", "riftGuardian", "infernoGuardian"][sector])
+	var size := Vector2(5.2, 3.8) if miniboss else Vector2(7.5, 5.3)
+	var center := Vector3(26.0, 0.0, 0.0)
+	if not spawn_is_clear(center, size):
+		return null
+	var enemy := make_body(texture, size, null, true)
+	enemy.position = center
+	enemy.set_meta("boss", true)
+	enemy.set_meta("boss_name", "WARDEN" if miniboss else ["SENTINEL", "RIFT GUARDIAN", "INFERNO GUARDIAN"][sector])
+	enemy.set_meta("health", scaled_enemy_health(70 if miniboss else 145))
+	enemy.set_meta("max_health", int(enemy.get_meta("health")))
+	enemy.set_meta("phase", "ATTACK")
+	enemy.set_meta("phase_age", 0.0)
+	enemy.set_meta("fire_clock", 1.2)
+	enemies.append(enemy)
+	return enemy
+
+func spawn_enemy_projectile(enemy: CharacterBody3D, boss: bool) -> void:
+	if enemy_shots.size() >= SHOT_LIMIT:
+		enemy_shots.pop_front()
+	var direction := (pilot.position - enemy.position).normalized()
+	if direction.length_squared() < 0.01:
+		direction = Vector3.LEFT
+	var speed: float = (12.0 if boss else 9.0) * party_attack_multiplier() * [0.88, 1.0, 1.12][difficulty]
+	enemy_shots.append({"position": enemy.position + Vector3(-1.6, 0, 0), "velocity": direction * speed})
+
+func damage_player() -> void:
+	if player_invulnerability > 0.0:
+		return
+	player_invulnerability = 0.75 if player_shield > 0 else 1.4
+	if player_shield > 0:
+		player_shield -= 1
+	else:
+		player_health -= 1
+	if player_health <= 0:
+		player_health = player_max_health
+		player_shield = player_max_shield
+		pilot.position = Vector3(-13, 0, 0)
+		player_invulnerability = 2.5
+
+func spawn_pickup(position: Vector3, kind: String) -> void:
+	var pickup := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.36
+	mesh.height = 0.72
+	var material := StandardMaterial3D.new()
+	var color: Color = {"health": Color("ff796e"), "shield": Color("67ddff"), "weapon": Color("ffd66e"), "credits": Color("96f28b")}.get(kind, Color.WHITE)
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 2.5
+	mesh.material = material
+	pickup.mesh = mesh
+	pickup.position = position
+	add_child(pickup)
+	pickups.append({"node": pickup, "kind": kind, "age": 0.0})
+
+func grant_pickup(kind: String) -> void:
+	var amount := party_pickup_amount()
+	match kind:
+		"health":
+			player_health = mini(player_max_health, player_health + amount)
+		"shield":
+			player_shield = mini(player_max_shield, player_shield + amount)
+		"weapon":
+			player_weapon_level = mini(7, player_weapon_level + amount)
+		"credits":
+			score += roundi(45.0 * party_strength_multiplier())
+
+func update_pickups(delta: float) -> void:
+	for index in range(pickups.size() - 1, -1, -1):
+		var pickup: Dictionary = pickups[index]
+		var node: MeshInstance3D = pickup["node"]
+		pickup["age"] = float(pickup["age"]) + delta
+		node.position.x -= 4.0 * delta
+		var difference: Vector3 = pilot.position - node.position
+		if difference.length() < 7.0:
+			node.position += difference.normalized() * minf(delta * 7.0, difference.length())
+		if node.position.distance_to(pilot.position) < 1.0:
+			grant_pickup(pickup["kind"])
+			node.queue_free()
+			pickups.remove_at(index)
+		elif float(pickup["age"]) > 18.0 or node.position.x < -30.0:
+			node.queue_free()
+			pickups.remove_at(index)
 
 func spawn_is_clear(center: Vector3, dimensions: Vector2) -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()
@@ -240,6 +382,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	elapsed += delta
+	player_invulnerability = maxf(0.0, player_invulnerability - delta)
 	var axes := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_W)) - float(Input.is_physical_key_pressed(KEY_S)))
 	var pads := Input.get_connected_joypads()
 	var firing := Input.is_physical_key_pressed(KEY_SPACE) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
@@ -262,23 +405,50 @@ func _physics_process(delta: float) -> void:
 	fire_clock -= delta
 	if firing and fire_clock <= 0 and shots.size() < SHOT_LIMIT:
 		fire_volley()
+	if not miniboss_spawned and elapsed >= 35.0:
+		miniboss_spawned = spawn_boss(true) != null
+	if not boss_spawned and elapsed >= 95.0:
+		boss_spawned = spawn_boss(false) != null
 	spawn_clock -= delta
 	if spawn_clock <= 0 and enemies.size() < 24:
 		var candidate := Vector3(27, sin(elapsed * 1.7) * 9, 0)
 		if spawn_is_clear(candidate, Vector2(3.5, 1.6)):
 			var enemy := make_body("scout", Vector2(3.5, 1.6), null, true)
-			enemy.set_meta("health", 2)
+			enemy.set_meta("health", scaled_enemy_health(2))
+			enemy.set_meta("max_health", int(enemy.get_meta("health")))
+			enemy.set_meta("fire_clock", randf_range(2.4, 4.0))
 			enemy.position = candidate
 			enemies.append(enemy)
 			spawn_clock = 1.1
 		else:
 			spawn_clock = 0.2
 	for enemy in enemies:
-		enemy.velocity = navigation.direction(enemy, Vector3(-28, clampf(enemy.position.y, -10, 10), 0), Engine.get_physics_frames()) * 5
+		if enemy.is_queued_for_deletion():
+			continue
+		var is_boss := bool(enemy.get_meta("boss", false))
+		if is_boss:
+			var phase_age := float(enemy.get_meta("phase_age", 0.0)) + delta
+			var phase := boss_phase_at(phase_age)
+			enemy.set_meta("phase_age", phase_age)
+			if phase != enemy.get_meta("phase", "ATTACK"):
+				enemy.set_meta("phase", phase)
+				var hull := enemy.get_node("VisualSlot/HullSprite") as MeshInstance3D
+				var hull_material := hull.material_override as StandardMaterial3D
+				hull_material.emission = Color("63bfff") if phase == "SHIELD" else Color.WHITE
+			enemy.velocity = navigation.direction(enemy, Vector3(17, clampf(sin(elapsed * 0.9) * 8, -9, 9), 0), Engine.get_physics_frames()) * 4
+		else:
+			enemy.velocity = navigation.direction(enemy, Vector3(-28, clampf(enemy.position.y, -10, 10), 0), Engine.get_physics_frames()) * 5
 		enemy.move_and_slide()
-		if enemy.position.x < -28:
+		if enemy.position.x < -28 and not is_boss:
 			navigation.forget(enemy)
 			enemy.queue_free()
+			continue
+		var fire_clock: float = float(enemy.get_meta("fire_clock", 2.5)) - delta * party_attack_multiplier() * DIFFICULTY_FIRE_RATE[difficulty]
+		enemy.set_meta("fire_clock", fire_clock)
+		var phase := String(enemy.get_meta("phase", "ATTACK"))
+		if fire_clock <= 0.0 and enemy.position.x < 23.0 and phase != "DAMAGE":
+			spawn_enemy_projectile(enemy, is_boss)
+			enemy.set_meta("fire_clock", (1.55 if phase == "SHIELD" else 0.95 if is_boss else 2.8) / DIFFICULTY_FIRE_RATE[difficulty])
 	for i in range(shots.size() - 1, -1, -1):
 		var shot: Dictionary = shots[i]
 		var previous: Vector3 = shot.position
@@ -293,21 +463,48 @@ func _physics_process(delta: float) -> void:
 					hit.collider.queue_free()
 					score += 25
 			if hit.collider is CharacterBody3D and hit.collider in enemies and not hit.collider.is_queued_for_deletion():
-				var health: int = int(hit.collider.get_meta("health")) - int(shot["damage"])
+				var target := hit.collider as CharacterBody3D
+				var phase := String(target.get_meta("phase", "ATTACK"))
+				var health: int = int(target.get_meta("health")) - boss_damage_amount(int(shot["damage"]), phase)
+				var fraction := clampf(float(health) / float(target.get_meta("max_health", 1)), 0.0, 1.0)
+				(target.get_node("VisualSlot") as NebulaVisualSlot).set_damage_fraction(fraction)
 				if health <= 0:
-					navigation.forget(hit.collider)
-					hit.collider.queue_free()
-					score += 100
+					navigation.forget(target)
+					target.queue_free()
+					if bool(target.get_meta("boss", false)):
+						score += 3000
+						spawn_pickup(target.position, "health")
+						spawn_pickup(target.position + Vector3(0, 1, 0), "shield")
+					else:
+						score += 100
+						if randf() < 0.24:
+							spawn_pickup(target.position, ["health", "shield", "weapon", "credits"].pick_random())
 				else:
-					hit.collider.set_meta("health", health)
+					target.set_meta("health", health)
 			shots.remove_at(i)
 		elif shot.position.x > 29:
 			shots.remove_at(i)
+	for i in range(enemy_shots.size() - 1, -1, -1):
+		var shot: Dictionary = enemy_shots[i]
+		var previous: Vector3 = shot.position
+		shot.position += shot.velocity * delta
+		var ray := PhysicsRayQueryParameters3D.create(previous, shot.position, 1, [pilot.get_rid()])
+		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+		if not hit.is_empty():
+			damage_player()
+			enemy_shots.remove_at(i)
+		elif shot.position.x < -30 or shot.position.x > 30 or absf(shot.position.y) > 16:
+			enemy_shots.remove_at(i)
 	enemies = enemies.filter(func(enemy): return not enemy.is_queued_for_deletion())
+	update_pickups(delta)
 	for i in range(shots.size()):
 		var shot: Dictionary = shots[i]
 		projectile_mesh.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(shot["scale"]), shot["position"]))
 	projectile_mesh.multimesh.visible_instance_count = shots.size()
+	for i in range(enemy_shots.size()):
+		var shot: Dictionary = enemy_shots[i]
+		enemy_projectile_mesh.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * 0.9), shot["position"]))
+	enemy_projectile_mesh.multimesh.visible_instance_count = enemy_shots.size()
 	var offset := fposmod(elapsed * 0.35, FIELD.x * 2)
 	var tile_index := int(offset / FIELD.x)
 	for i in range(3):
@@ -317,4 +514,12 @@ func _physics_process(delta: float) -> void:
 	for i in range(scenery.size()):
 		var depth := i % 3
 		scenery[i].position.x = fposmod(i * 9.7 - elapsed * [0.875, 3.5, 8.5][depth], 64) - 32
-	status.text = "ENGINE PREVIEW | %s | %s | %s | SCORE %d\nWASD / left stick · LMB / RT fire · 1-5 weapon · T tether %s · Tab sector · Esc quit" % [BACKDROPS[sector].to_upper(), "RTX (no denoiser)" if rtx_active else "RASTER", WEAPONS[weapon_mode]["name"], score, "ON" if tethered else "OFF"]
+	var current_boss: CharacterBody3D
+	for enemy in enemies:
+		if bool(enemy.get_meta("boss", false)) and not enemy.is_queued_for_deletion():
+			current_boss = enemy
+			break
+	var boss_status := ""
+	if current_boss != null:
+		boss_status = " | %s %s · %d/%d" % [current_boss.get_meta("boss_name"), current_boss.get_meta("phase"), current_boss.get_meta("health"), current_boss.get_meta("max_health")]
+	status.text = "ENGINE PREVIEW | %s | %s | %s LV %d | P%d · HP %d/%d · SH %d/%d | SCORE %d%s\nWASD / left stick · LMB / RT fire · 1-5 weapon · T tether %s · Tab sector · Esc quit" % [BACKDROPS[sector].to_upper(), "RTX (no denoiser)" if rtx_active else "RASTER", WEAPONS[weapon_mode]["name"], player_weapon_level, party_size, player_health, player_max_health, player_shield, player_max_shield, score, boss_status, "ON" if tethered else "OFF"]

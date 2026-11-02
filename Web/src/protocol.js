@@ -1,5 +1,6 @@
-import {validInput,validSnapshot,WEAPONS} from './world.js';
-export const BUILD='0.9.14-web',MAX_MESSAGE=512*1024;
+import {BUILD,validInput,validSnapshot,WEAPONS} from './world.js';
+export {BUILD};
+export const MAX_MESSAGE=512*1024;
 export const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function makeCode(length=10){const bytes=crypto.getRandomValues(new Uint8Array(length));return [...bytes].map(b=>ALPHABET[b%32]).join('');}
 export function cleanCode(value,max=14){const code=String(value??'').replace(/[\s-]/g,'').toUpperCase();return code.length>=8&&code.length<=max&&[...code].every(c=>ALPHABET.includes(c))?code:null;}

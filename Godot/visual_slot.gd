@@ -1,21 +1,24 @@
 class_name NebulaVisualSlot
 extends Node3D
 
+var metallic_frame: MeshInstance3D
+
 ## Replace artwork with an imported .glb/.gltf scene without changing the body,
 ## collision, flight plane or weapon mounts owned by its parent.
 func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, mirror: bool = false, metallic_frame: bool = false) -> void:
 	for child in get_children():
 		child.queue_free()
+	self.metallic_frame = null
 	if model != null:
 		add_child(model.instantiate())
 		return
 	if metallic_frame:
-		var frame := MeshInstance3D.new()
-		frame.name = "MetallicFrame"
+		self.metallic_frame = MeshInstance3D.new()
+		self.metallic_frame.name = "MetallicFrame"
 		var frame_mesh := QuadMesh.new()
 		frame_mesh.size = dimensions * 1.08
-		frame.mesh = frame_mesh
-		frame.position.z = -0.06
+		self.metallic_frame.mesh = frame_mesh
+		self.metallic_frame.position.z = -0.06
 		var frame_material := StandardMaterial3D.new()
 		frame_material.albedo_texture = art
 		frame_material.albedo_color = Color("9ab0bd")
@@ -28,8 +31,9 @@ func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, m
 		if mirror:
 			frame_material.uv1_scale.x = -1
 			frame_material.uv1_offset.x = 1
-		frame.material_override = frame_material
-		add_child(frame)
+		self.metallic_frame.material_override = frame_material
+		self.metallic_frame.visible = false
+		add_child(self.metallic_frame)
 	var quad := MeshInstance3D.new()
 	quad.name = "HullSprite"
 	var mesh := QuadMesh.new()
@@ -51,3 +55,7 @@ func configure(art: Texture2D, dimensions: Vector2, model: PackedScene = null, m
 		material.uv1_offset.x = 1
 	quad.material_override = material
 	add_child(quad)
+
+func set_damage_fraction(fraction: float) -> void:
+	if metallic_frame != null:
+		metallic_frame.visible = fraction < 1.0

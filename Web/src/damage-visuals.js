@@ -45,10 +45,11 @@ export class DamageVisuals{
     const frame=this.renderer.sprite(`metallic:${key}`,texture,sprite.position.x,1080-sprite.position.y,
       sprite.scale.x*1.075,sprite.scale.y*1.075,'#9ab0bd',-sprite.material.rotation,sprite.renderOrder-.01,sprite.material.opacity);
     frame.center.copy(sprite.center);
+    return frame;
   }
   track(key,sprite,texture,fraction,{shield=false,hurt=0,impact=null,metallic=false}={}){
     fraction=clamp(fraction);const topology=this.topology(texture),keep=voxelCount(fraction,topology.cells.length),u=this.attach(sprite,topology,shield);
-    if(metallic&&!shield)this.metallicFrame(key,sprite,texture);
+    if(metallic&&!shield)this.metallicFrame(key,sprite,texture).visible=fraction<1;
     let record=this.records.get(key);
     if(!record||record.topology!==topology){record={topology,keep,spectrum:shield?new ShieldSpectrum():null,hurt,flash:0};this.records.set(key,record);}
     const changed=keep!==record.keep;

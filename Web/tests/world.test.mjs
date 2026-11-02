@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {orbitTiles} from '../src/orbit.js';
 import assert from 'node:assert/strict';
-import {createWorld,addPlayer,startRun,stepWorld,neutralInput,validInput,validSnapshot,migrateSoloSave,buyUpgrade,hurtPlayer,WEAPONS} from '../src/world.js';
+import {BUILD,createWorld,addPlayer,startRun,stepWorld,neutralInput,validInput,validSnapshot,migrateSoloSave,buyUpgrade,hurtPlayer,WEAPONS,bossCombatPhase,partyStrengthMultiplier,partyPickupAmount} from '../src/world.js';
 import {packet,readPacket,RateGate,validIceServers,cleanCode,cleanName,fragmentPacket,PacketAssembler,packSnapshot} from '../src/protocol.js';
 const party=()=>{const w=createWorld(12345);for(let i=0;i<6;i++)assert.equal(addPlayer(w,i,`P${i}`),true);startRun(w);return w;};
 test('endless orbit wraps all sectors without losing pilots or upgrades',()=>{
@@ -24,15 +24,52 @@ test('six seats, unique IDs and lobby-only admission',()=>{
   assert.equal(addPlayer(w,6,'EXTRA'),false);assert.equal(addPlayer(w,0,'DUPLICATE'),false);
   startRun(w);assert.equal(addPlayer(w,5,'LATE'),false);
 });
-test('boss bullet patterns include fans, spirals and a traversable ring lane',()=>{
+test('boss combat cycles through attacks, shield and damage windows',()=>{
+  assert.equal(bossCombatPhase(0),'attack');assert.equal(bossCombatPhase(6),'shield');
+  assert.equal(bossCombatPhase(9),'damage');assert.equal(bossCombatPhase(13),'attack');
   const w=party();w.sectorTime=33;w.waveTimer=999;for(const p of w.players)p.invuln=100;
   stepWorld(w,{});const boss=w.enemies.find(e=>e.kind==='boss');assert.ok(boss);boss.x=1600;
-  for(const [age,expected] of [[0,7],[5,18],[10,null]]){
+  for(const [age,phase,minimum,maximum] of [[0,'attack',7,7],[6,'shield',14,18],[9,'damage',0,0]]){
     boss.age=age;boss.timer=0;w.shots=[];stepWorld(w,{});const bullets=w.shots.filter(s=>!s.friendly);
-    if(expected!==null)assert.equal(bullets.length,expected);else{
-      assert.ok(bullets.length>=14&&bullets.length<18);const target=w.players[Math.floor((boss.id+w.time/3)%w.players.length)],aim=Math.atan2(target.y-boss.y,target.x-boss.x);
+    assert.equal(boss.combatPhase,phase);assert.ok(bullets.length>=minimum&&bullets.length<=maximum);
+    if(phase==='shield'){
+      const target=w.players[Math.floor((boss.id+w.time/3)%w.players.length)],aim=Math.atan2(target.y-boss.y,target.x-boss.x);
       for(const shot of bullets){const angle=Math.atan2(shot.vy,shot.vx),delta=Math.atan2(Math.sin(angle-aim),Math.cos(angle-aim));assert.ok(Math.abs(delta)>=.28-1e-9);}
     }
+    assert.equal(validSnapshot(w),true);
+  }
+});
+test('boss shields block damage and damage windows amplify weapon hits',()=>{
+  const w=createWorld(22);addPlayer(w,0);startRun(w);w.waveTimer=999;
+  const player=w.players[0];player.invuln=100;player.weapon=1;
+  const boss={id:900,kind:'boss',bossType:1,x:900,y:player.y,radius:100,health:100,maxHealth:100,width:295,speed:0,age:6,timer:1000,phase:0,name:'TEST',combatPhase:'shield'};
+  w.enemies.push(boss);
+  const fireAtBoss=()=>{const x=boss.x-boss.speed/60,y=540+Math.sin((boss.age+1/60)*.8)*255;w.shots.push({id:w.nextId++,owner:0,friendly:true,x:x-100,y,px:x-100,py:y,vx:0,vy:0,weapon:1,damage:2,radius:9,pierce:1,hits:[],age:0,life:2,color:'#ffffff'});};
+  fireAtBoss();stepWorld(w,{});assert.equal(boss.health,100);
+  boss.age=9;fireAtBoss();stepWorld(w,{});assert.equal(boss.health,97);
+});
+test('party scaling stays mild and pickup yields improve for a full wing',()=>{
+  assert.equal(partyStrengthMultiplier(1),1);assert.equal(partyStrengthMultiplier(6),1.4);
+  assert.equal(partyPickupAmount(1,1),1);assert.equal(partyPickupAmount(1,4),1);assert.equal(partyPickupAmount(1,6),2);
+  const w=party(),p=w.players[0];p.health=4;p.maxHealth=8;p.x=500;p.y=500;
+  w.pickups.push({id:w.nextId++,x:p.x,y:p.y,type:'repair',age:0});w.waveTimer=999;stepWorld(w,{});
+  assert.equal(p.health,6);
+});
+test('six-player enemy health uses a restrained party bonus on every difficulty',()=>{
+  for(let difficulty=0;difficulty<=2;difficulty++){
+    const w=party();w.difficulty=difficulty;w.sectorTime=0;w.waveTimer=.001;
+    const solo=createWorld(12345);addPlayer(solo,0);startRun(solo,difficulty);solo.sectorTime=0;solo.waveTimer=.001;
+    stepWorld(w,{});stepWorld(solo,{});
+    const wingHp=w.enemies[0].maxHealth,soloHp=solo.enemies[0].maxHealth;
+    assert.ok(wingHp>=soloHp&&wingHp<=Math.ceil(soloHp*1.41),`difficulty ${difficulty}`);
+  }
+});
+test('boss bullet patterns include fans and a traversable shield-phase ring lane',()=>{
+  const w=party();w.sectorTime=33;w.waveTimer=999;for(const p of w.players)p.invuln=100;
+  stepWorld(w,{});const boss=w.enemies.find(e=>e.kind==='boss');assert.ok(boss);boss.x=1600;
+  for(const [age,minimum,maximum] of [[0,7,7],[6,14,18]]){
+    boss.age=age;boss.timer=0;w.shots=[];stepWorld(w,{});const bullets=w.shots.filter(s=>!s.friendly);
+    assert.ok(bullets.length>=minimum&&bullets.length<=maximum);
     assert.equal(validSnapshot(w),true);
   }
 });
@@ -81,11 +118,11 @@ test('rejects malformed, oversized and incompatible network input',()=>{
   assert.equal(readPacket({...packet('input',{input:normal}),version:999}),null);
   assert.equal(readPacket(packet('input',{input:normal,padding:'x'.repeat(5000)})),null);
   assert.equal(readPacket(packet('world',{world:{players:[]}})),null);
-  assert.equal(readPacket({version:1,build:'0.9.13-web',kind:'execute',script:'alert(1)'}),null);
+  assert.equal(readPacket({version:1,build:'0.9.14-web',kind:'execute',script:'alert(1)'}),null);
 });
 test('previous solo campaign saves migrate without changing the original object',()=>{
-  const w=createWorld();addPlayer(w,0);startRun(w);w.build='0.9.13-web';delete w.endless;delete w.orbit;
-  const migrated=migrateSoloSave(w);assert.equal(validSnapshot(migrated),true);assert.equal(migrated.endless,false);assert.equal(w.build,'0.9.13-web');
+  const w=createWorld();addPlayer(w,0);startRun(w);w.build='0.9.14-web';delete w.endless;delete w.orbit;
+  const migrated=migrateSoloSave(w);assert.equal(validSnapshot(migrated),true);assert.equal(migrated.endless,false);assert.equal(w.build,'0.9.14-web');
   assert.equal(readPacket(packet('world',{world:w})),null);
 });
 test('sequence and rate limits reject replay/flood',()=>{

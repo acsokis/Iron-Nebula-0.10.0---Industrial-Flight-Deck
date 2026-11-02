@@ -1,6 +1,7 @@
 import {capturePositions,resolveWorldMovement,solidBodies,reserveSpawn} from './space-physics.js';
 import {spaceEncounter} from './space-field.js';
 export const WIDTH=1920, HEIGHT=1080, MAX_PLAYERS=6;
+export const BUILD='0.10.0-web';
 export const COLORS=['#55e6ff','#8dff92','#ffc077','#c9a1ff','#ffe57f','#ff9bd8'];
 export const WEAPONS=[
   {name:'PULSE',color:'#60dfff',interval:.22,speed:1180,damage:1},
@@ -18,7 +19,14 @@ export const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const distance=(a,b)=>(a.x-b.x)**2+(a.y-b.y)**2;
 function random(w){let x=w.rng|0;x^=x<<13;x^=x>>>17;x^=x<<5;w.rng=x;return (x>>>0)/4294967296;}
 const roll=(w,a,b)=>a+random(w)*(b-a);
-export function createWorld(seed=87321){return {schema:1,build:'0.9.14-web',tick:0,rng:seed||1,nextId:1,
+export const partyStrengthMultiplier=playerCount=>1+Math.min(MAX_PLAYERS-1,Math.max(0,playerCount-1))*.08;
+const partyAttackMultiplier=playerCount=>1+Math.min(MAX_PLAYERS-1,Math.max(0,playerCount-1))*.025;
+export const partyPickupAmount=(baseAmount,playerCount)=>Math.max(0,Math.floor(baseAmount)+Math.floor(Math.max(0,playerCount-1)/4));
+export function bossCombatPhase(age){
+  const phaseTime=((Math.max(0,age)%13)+13)%13;
+  return phaseTime<6?'attack':phaseTime<9?'shield':'damage';
+}
+export function createWorld(seed=87321){return {schema:1,build:BUILD,tick:0,rng:seed||1,nextId:1,
   phase:'lobby',sector:1,sectorTime:0,time:0,difficulty:1,bossStage:0,waveTimer:1,wave:0,endless:false,orbit:0,
   spaceSeed:(seed^0x50ace123)>>>0,spaceIndex:0,spaceClock:2,spaceGenerator:1,
   score:0,credits:0,earned:0,unlocked:1,kills:0,players:[],enemies:[],shots:[],rocks:[],pickups:[],fx:[],
@@ -51,7 +59,7 @@ function shot(w,p,x,y,vx,vy,weapon=p.weapon,damage=WEAPONS[weapon].damage){
 }
 function enemyShot(w,e,angle,speed=330,radius=9){
   w.shots.push({id:w.nextId++,owner:-1,friendly:false,x:e.x-35,y:e.y,px:e.x-35,py:e.y,
-    vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,weapon:0,damage:1,radius,age:0,life:5,color:w.sector===2?'#db92ff':'#ff946b'});
+    vx:Math.cos(angle)*speed*partyAttackMultiplier(w.players.length),vy:Math.sin(angle)*speed*partyAttackMultiplier(w.players.length),weapon:0,damage:1,radius,age:0,life:5,color:w.sector===2?'#db92ff':'#ff946b'});
 }
 function fire(w,p){
   const weapon=WEAPONS[p.weapon],count=p.weapon===3?1:p.level;
@@ -63,12 +71,13 @@ function fire(w,p){
 }
 function spawnEnemy(w,boss=0){
   const kind=boss?'boss':['scout','interceptor','heavy'][Math.floor(random(w)*3)],tier=boss===2?2:1;
-  const factor=[.78,1,1.32][w.difficulty]*(1+.65*(w.players.length-1))*(1+Math.min(20,w.orbit??0)*.15);
+  const factor=[.78,1,1.32][w.difficulty]*partyStrengthMultiplier(w.players.length)*(1+Math.min(20,w.orbit??0)*.15);
   const hp=Math.ceil((boss?(boss===2?145:75):kind==='heavy'?5:kind==='interceptor'?3:2)*(1+.35*(w.sector-1))*factor);
   const e={id:w.nextId++,kind,boss:tier,bossType:boss,x:boss?2240:2080,y:boss?540:roll(w,220,890),baseY:roll(w,260,820),
     radius:boss?(boss===2?155:120):kind==='heavy'?48:34,health:hp,maxHealth:hp,
     width:boss?(boss===2?370:295):kind==='heavy'?145:115,speed:boss?50:roll(w,150,250)+w.sector*20,
-    age:0,timer:boss?1.4:roll(w,.8,2.2),phase:roll(w,0,6.28),name:boss?(boss===2?SECTORS[w.sector-1].boss:SECTORS[w.sector-1].mini):kind};
+    age:0,timer:boss?1.4:roll(w,.8,2.2),phase:roll(w,0,6.28),combatPhase:boss?'attack':null,
+    name:boss?(boss===2?SECTORS[w.sector-1].boss:SECTORS[w.sector-1].mini):kind};
   const reservations=solidBodies(w);let placed=false;
   for(let attempt=0;attempt<24;attempt++){
     if(attempt)e.y=roll(w,boss?340:220,boss?740:890);
@@ -80,7 +89,9 @@ function spawnEnemy(w,boss=0){
 }
 function hitEnemy(w,e,damage,p){
   if(e.health<=0)return;
-  const dealt=Math.min(e.health,damage);e.health-=damage;if(p)p.damage+=dealt;
+  if(e.kind==='boss'&&e.combatPhase==='shield')return;
+  const applied=e.kind==='boss'&&e.combatPhase==='damage'?Math.ceil(damage*1.5):damage;
+  const dealt=Math.min(e.health,applied);e.health-=applied;if(p)p.damage+=dealt;
   effect(w,'impact',e.x-e.radius,e.y,p?WEAPONS[p.weapon].color:'#a5ddff',14);
   if(e.health>0)return;
   w.kills++;w.sectorKills++;w.score+=e.kind==='boss'?e.bossType===2?6000:3000:100;
@@ -145,7 +156,8 @@ export function stepWorld(w,inputs,dt=1/60){
   if(w.spaceClock<=0&&w.rocks.length<24){const encounter=spaceEncounter(w.spaceSeed,w.spaceIndex++),rock={id:w.nextId++,x:2180,...encounter,health:encounter.maxHealth};
     if(reserveSpawn({...rock,type:'rock',half:0},solidBodies(w))){w.rocks.push(rock);w.spaceClock=encounter.delay;}else w.spaceClock=.4;}
   for(const e of w.enemies){
-    e.age+=dt;e.timer-=dt;
+    e.age+=dt;e.timer-=dt*partyAttackMultiplier(w.players.length);
+    if(e.kind==='boss')e.combatPhase=bossCombatPhase(e.age);
     if(e.kind==='boss'){e.x=Math.max(1530,e.x-e.speed*dt);e.y=540+Math.sin(e.age*.8)*255;}
     else {e.x-=e.speed*dt;e.y+=Math.sin(e.age*2.3+e.phase)*dt*65;}
   }
@@ -164,8 +176,9 @@ export function stepWorld(w,inputs,dt=1/60){
   }
   for(const e of w.enemies){
     const target=alive[Math.floor((e.id+w.time/3)%alive.length)];
+    if(e.kind==='boss'&&e.combatPhase==='damage')continue;
     if(e.timer<=0&&e.x<1900&&target){
-      const angle=Math.atan2(target.y-e.y,target.x-e.x),boss=e.kind==='boss',pattern=boss?Math.floor(e.age/5)%3:0;
+      const angle=Math.atan2(target.y-e.y,target.x-e.x),boss=e.kind==='boss',pattern=boss?(e.combatPhase==='shield'?2:Math.floor(e.age/5)%2):0;
       const count=boss?(pattern===0?(e.health<e.maxHealth*.5?11:7):18):e.kind==='heavy'?3:1;
       for(let j=0;j<count;j++){
         const direction=pattern===0?angle+(j-(count-1)/2)*(boss?.11:.14):e.age*.58+j*Math.PI*2/count;
@@ -174,7 +187,7 @@ export function stepWorld(w,inputs,dt=1/60){
         if(pattern===2&&Math.abs(delta)<.28)continue;
         enemyShot(w,e,direction,boss?(pattern===0?290:225)+w.sector*20:320+w.sector*25,boss?9:8);
       }
-      e.timer=boss?(pattern===0?.65:.9):2.2;
+      e.timer=boss?(e.combatPhase==='shield'?1.6:pattern===0?.65:.9):2.2;
     }
   }
   for(const s of w.shots){
@@ -189,8 +202,12 @@ export function stepWorld(w,inputs,dt=1/60){
     item.age+=dt;const p=alive.reduce((a,b)=>distance(item,a)<distance(item,b)?a:b);item.x-=65*dt;
     const d=Math.sqrt(distance(item,p));if(d<240+w.upgrades.magnet*80){const pull=dt*clamp(600-d,30,450)/(d||1);item.x+=(p.x-item.x)*pull;item.y+=(p.y-item.y)*pull;}
     if(distance(item,p)<65**2){
-      if(item.type==='credits')credit(w,45);if(item.type==='weapon')p.level=Math.min(7,p.level+1);
-      if(item.type==='repair')p.health=Math.min(p.maxHealth,p.health+1);if(item.type==='shield')p.shield=Math.min(p.maxShield,p.shield+1);if(item.type==='drone')p.drone=true;
+      const amount=partyPickupAmount(1,w.players.length);
+      if(item.type==='credits')credit(w,Math.round(45*partyStrengthMultiplier(w.players.length)));
+      if(item.type==='weapon')p.level=Math.min(7,p.level+amount);
+      if(item.type==='repair')p.health=Math.min(p.maxHealth,p.health+amount);
+      if(item.type==='shield')p.shield=Math.min(p.maxShield,p.shield+amount);
+      if(item.type==='drone')p.drone=true;
       item.age=999;effect(w,'pickup',item.x,item.y,COLORS[p.id],45);
     }
   }
@@ -218,19 +235,24 @@ export function buyUpgrade(w,id,requester=0){
   else {if(w.upgrades[id]>=3)return false;w.upgrades[id]++;}
   w.credits-=item.price;return true;
 }
-export function migrateSoloSave(w){return w?.schema===1&&w.build==='0.9.13-web'?{...w,build:'0.9.14-web',endless:false,orbit:0}:w;}
+export function migrateSoloSave(w){
+  if(w?.schema!==1||!['0.9.13-web','0.9.14-web'].includes(w.build))return w;
+  return {...w,build:BUILD,endless:w.endless??false,orbit:w.orbit??0,
+    enemies:Array.isArray(w.enemies)?w.enemies.map(e=>e?.kind==='boss'?{...e,combatPhase:bossCombatPhase(e.age)}:e):w.enemies};
+}
 export function validSnapshot(w){
   const number=(v,min,max)=>Number.isFinite(v)&&v>=min&&v<=max,integer=(v,min,max)=>Number.isSafeInteger(v)&&v>=min&&v<=max;
   const point=o=>o&&number(o.x,-5000,5000)&&number(o.y,-3000,3000),id=o=>integer(o.id,1,Number.MAX_SAFE_INTEGER),color=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
   if(w&&(w.endless!==undefined&&typeof w.endless!=='boolean'||w.orbit!==undefined&&!integer(w.orbit,0,1000000)))return false;
   if(w&&(w.spaceSeed!==undefined&&!integer(w.spaceSeed,0,4294967295)||w.spaceIndex!==undefined&&!integer(w.spaceIndex,0,Number.MAX_SAFE_INTEGER)||w.spaceClock!==undefined&&!number(w.spaceClock,-1,10)))return false;
-  if(!w||w.schema!==1||w.build!=='0.9.14-web'||!integer(w.tick,0,Number.MAX_SAFE_INTEGER)||!['lobby','playing','shop','gameover','victory'].includes(w.phase)||
+  if(!w||w.schema!==1||w.build!==BUILD||!integer(w.tick,0,Number.MAX_SAFE_INTEGER)||!['lobby','playing','shop','gameover','victory'].includes(w.phase)||
     !integer(w.sector,1,3)||!integer(w.difficulty,0,2)||!number(w.time,0,1e8)||!number(w.sectorTime,0,1e8)||!integer(w.unlocked,1,31)||
     !number(w.score,0,1e12)||!number(w.credits,0,1e9)||!w.upgrades||!['engine','power','drone','magnet'].every(k=>integer(w.upgrades[k],0,3)))return false;
   if(!['players','enemies','shots','rocks','pickups','fx'].every(k=>Array.isArray(w[k])&&w[k].length<=({players:6,enemies:64,shots:600,rocks:64,pickups:200,fx:100}[k])))return false;
   if(!w.players.every(p=>point(p)&&integer(p.id,0,5)&&integer(p.weapon,0,4)&&integer(p.level,1,7)&&number(p.vx,-5000,5000)&&number(p.vy,-5000,5000)&&
     number(p.health,0,10000)&&number(p.maxHealth,1,10000)&&integer(p.lives,0,20)&&number(p.shield,0,20)&&typeof p.name==='string'&&p.name.length<=20)||new Set(w.players.map(p=>p.id)).size!==w.players.length)return false;
-  if(!w.enemies.every(e=>point(e)&&id(e)&&['boss','scout','interceptor','heavy'].includes(e.kind)&&number(e.width,10,600)&&number(e.radius,1,300)&&number(e.health,0,1e8)&&number(e.maxHealth,1,1e8)&&number(e.age,0,1e8)&&typeof e.name==='string'&&e.name.length<=60))return false;
+  if(!w.enemies.every(e=>point(e)&&id(e)&&['boss','scout','interceptor','heavy'].includes(e.kind)&&number(e.width,10,600)&&number(e.radius,1,300)&&number(e.health,0,1e8)&&number(e.maxHealth,1,1e8)&&number(e.age,0,1e8)&&
+    (e.kind!=='boss'||['attack','shield','damage'].includes(e.combatPhase))&&typeof e.name==='string'&&e.name.length<=60))return false;
   if(!w.shots.every(s=>point(s)&&id(s)&&integer(s.owner,-1,5)&&typeof s.friendly==='boolean'&&integer(s.weapon,0,4)&&number(s.vx,-5000,5000)&&number(s.vy,-5000,5000)&&number(s.radius,1,50)&&color(s.color)))return false;
   if(!w.rocks.every(r=>point(r)&&id(r)&&number(r.radius,1,200)&&number(r.angle,-1e8,1e8)&&number(r.health,0,1e5)&&
     (r.maxHealth===undefined||number(r.maxHealth,1,1e5))&&(r.speed===undefined||number(r.speed,0,300))&&(r.kind===undefined||['asteroid','wreck','station'].includes(r.kind))))return false;

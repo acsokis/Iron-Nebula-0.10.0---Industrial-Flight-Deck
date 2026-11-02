@@ -48,8 +48,20 @@ func run_checks() -> void:
 		var frame_material := frame.material_override as StandardMaterial3D
 		var hull := pilot_slot.get_node("HullSprite") as MeshInstance3D
 		var frame_mesh := frame.mesh as QuadMesh
-		check(frame.position.z < hull.position.z and frame_material.metallic > 0.9, "Metallic frame sits behind the hull with a reflective finish")
+		check(not frame.visible and frame.position.z < hull.position.z and frame_material.metallic > 0.9, "Undamaged hull hides its metallic frame")
 		check(frame_material.albedo_texture == arena.art("ship") and frame_mesh.size.is_equal_approx(Vector2(7.1, 2.68) * 1.08), "Metallic backing follows the hull texture and silhouette")
+		pilot_slot.set_damage_fraction(0.75)
+		check(frame.visible, "Metallic frame appears as soon as the hull is damaged")
+		pilot_slot.set_damage_fraction(1.0)
+		check(not frame.visible, "Repair hides the metallic frame again")
+	check(arena.boss_phase_at(0.0) == "ATTACK" and arena.boss_phase_at(6.0) == "SHIELD" and arena.boss_phase_at(9.0) == "DAMAGE", "Bosses cycle through attack, shield and damage phases")
+	check(arena.boss_damage_amount(2, "SHIELD") == 0 and arena.boss_damage_amount(2, "DAMAGE") == 3, "Boss shield blocks shots and damage windows amplify hits")
+	arena.party_size = 6
+	check(is_equal_approx(arena.party_strength_multiplier(), 1.4) and is_equal_approx(arena.party_attack_multiplier(), 1.125), "Full-party enemy scaling remains bounded")
+	check(arena.party_pickup_amount() == 2, "Full-party pickups provide a modest additional resource")
+	arena.player_health = 1
+	arena.grant_pickup("health")
+	check(arena.player_health == 3, "Health pickups scale with the active party size")
 	check(arena.WEAPONS.size() == 5, "All five primary weapon modes are available")
 	for mode in range(arena.WEAPONS.size()):
 		arena.select_weapon(mode)
@@ -96,7 +108,10 @@ func run_checks() -> void:
 	friend.queue_free()
 	check(not arena.enemies.is_empty(), "Enemy spawn creates a physics target")
 	if not arena.enemies.is_empty():
-		check(arena.enemies[0].get_node("VisualSlot").has_node("MetallicFrame"), "Enemy hull uses the matching metallic frame")
+		var enemy_slot = arena.enemies[0].get_node("VisualSlot")
+		check(enemy_slot.has_node("MetallicFrame") and not enemy_slot.get_node("MetallicFrame").visible, "Undamaged enemy hull hides its matching metallic frame")
+		enemy_slot.set_damage_fraction(0.5)
+		check(enemy_slot.get_node("MetallicFrame").visible, "Enemy metallic frame appears when damage begins")
 		arena.enemies[0].position = arena.pilot.position + Vector3(8, 0, 0)
 	key(KEY_SPACE, true)
 	for i in range(150):
