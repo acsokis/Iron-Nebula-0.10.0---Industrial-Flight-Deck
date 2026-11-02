@@ -21,7 +21,7 @@ Do not treat a partial implementation as a release.
 
 On `engine/godot-nvidia`, feature commit `170dd6a` adds the gameplay scope to
 Web and the Godot preview. The current branch also contains the documentation
-and handoff follow-up; neither commit has been pushed.
+and handoff follow-up commits; none have been pushed.
 
 - Web package version is `0.10.0` (development; not published).
 - Web hull frames appear when damaged and disappear at full repair. Bosses use
@@ -53,9 +53,12 @@ Results: 33 Web unit tests passed; the six-browser P2P test passed three times;
 the damage Playwright test passed; the production build passed (with the
 existing >700 kB chunk-size warning); release verification passed for 61 files
 (13.85 MiB); Godot printed `PASS: 16` gameplay checks. The full browser suite
-and the .NET 10 desktop Release build were not run for this feature milestone.
-Playwright Chromium was installed in the user profile because the prior local
-browser cache had completion markers but no executable.
+was not run. The untouched desktop baseline at `c0137d1` also passed
+`dotnet build IronNebula.csproj -c Release` with zero warnings/errors,
+32 co-op transport checks and 1,031 controller checks. Those desktop checks do
+not validate 0.10.0 gameplay parity. Playwright Chromium was installed in the
+user profile because the prior local browser cache had completion markers but
+no executable.
 
 ## Branches, local state and constraints
 
@@ -64,8 +67,8 @@ browser cache had completion markers but no executable.
   desktop implementation attempt was undone in the editor during the session.
   Do not restore or re-create those source edits without the user's explicit
   request.
-- The desktop branch, docs, releases, GitHub push and GitHub Release are not
-  complete. No Actions workflow was manually started.
+- The desktop feature port, release archives, GitHub push and GitHub Release are
+  not complete. No Actions workflow was manually started.
 - Preserve `stash@{0}` ("Preserve local VS and Godot settings"), which contains
   machine-local `IronNebula.sln`, `project.godot` and
   `Properties/launchSettings.json`. Existing stashes `stash@{1}` and
