@@ -7,11 +7,14 @@ Iron Nebula is a roguelike bullet-hell space arcade game. Releases represent com
 | Area | Implemented foundation | Remaining evidence |
 |---|---|---|
 | Windows | Three sectors, bosses, five weapons, upgrades, shop, saves and controller input | Clean-machine and extended gameplay validation |
-| Browser | WebGL2 combat, native artwork/music, touch flight, endless orbit and GPU effects | Target-hardware measurements and current deployment verification |
+| Browser | WebGL2 combat, native artwork/music, touch flight, endless orbit, GPU effects, damage hull frames, timed boss phases and mild party scaling | Target-hardware measurements, desktop parity and current deployment verification |
 | Co-op | Browser 2–6-player P2P and phone controller; separate native networking | Multi-machine Internet/NAT coverage and sustained sessions |
-| Godot | Dedicated NVIDIA engine development branch | Playable migration, rendering/physics validation and feature parity |
+| Godot | Dedicated NVIDIA engine preview, damage hull frames, boss combat phases, party-size testing and scaling pickups | Playable campaign migration, rendering/physics validation and feature parity |
 
 Implementation, automated validation, physical-device tests and live multiplayer evidence are separate states. An engine source checkout is not a completed migration.
+The current 0.10.0 work is not a published release: Windows feature parity, a
+release build, release archives and publication are still pending. See
+[AI_HANDOFF.md](AI_HANDOFF.md) for verified commands and branch-specific blockers.
 
 ## Release milestones
 

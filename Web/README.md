@@ -1,4 +1,4 @@
-# Iron Nebula Web — 0.9.14
+# Iron Nebula Web — 0.10.0 development
 
 A static **WebGL 2** browser adaptation of the current Iron Nebula project. No
 native installer or game server is required for solo play. WebRTC co-op uses one
@@ -18,6 +18,12 @@ not compatible with browser rooms/saves.
   choose **Join wing**. The host launches once at least one guest joins.
 - At the shop, the host spends team credits. Every pilot toggles **Ready** before
   advancing. Mid-run late join/reconnect and host migration are not implemented.
+- Enemy hull health rises by 8% per additional pilot (capped at 40%); enemy firing
+  rate and projectile speed rise by 2.5% per additional pilot. At five or six
+  pilots, health, shield and credit pickups provide one additional unit.
+- Bosses cycle through 6 seconds of attack, 3 seconds of shield and 4 seconds of
+  damage. Boss shields block hits; damage windows amplify weapon damage by 50%.
+  The cycle is separate from the existing health-triggered boss patterns.
 - Keep the host tab open and visible. Heartbeats and simulation are independent
   of drawing, but browsers can still throttle background or power-saving tabs.
 - Controls: WASD/arrows or mouse flight, Space/left mouse fire, Shift/right mouse
@@ -117,6 +123,9 @@ The checks cover the WebGL 2 runtime, lighting/HDR fallback controls, synthesize
 audio startup, emulated controller icons, phone control through real WebRTC, and
 six separate browser contexts exchanging movement/shots/ready state. They do not
 replace physical phone/controller/HDR or cross-network testing.
+
+This 0.10.0 development build has not yet been published. Windows desktop parity
+and release packaging remain in progress; see the [AI handoff](../AI_HANDOFF.md).
 
 ## Publish with GitHub Pages
 

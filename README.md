@@ -2,17 +2,20 @@
 
 **Experimental Godot NVIDIA engine branch:** see [build, controls and parity status](Godot/README.md). This is a separately validated 2.5D foundation with Jolt, procedural solid space objects, optional future 3D visual models, requested-by-default RTX and a baked VoxelGI raster fallback. It does not yet replace the complete native/browser campaign and co-op implementations.
 
-**Browser edition 0.9.14:** a roguelike bullet-hell space arcade adaptation with
+**Browser edition 0.10.0 (development):** a roguelike bullet-hell space arcade adaptation with
 Endless Orbit, the native side-view ship/cockpit/effect/pickup artwork, scrolling
 parallax backgrounds and optional default-on tethered pointer flight. Touch drag
 continuously steers the ship. The original desktop soundtrack is available along
 with original synthesized Atari-style effects and optional chiptune music.
 About credits name both contributors and their roles. Up to six players connect over
-WebRTC, phone controllers, automatic Xbox/PlayStation button icons, dynamic lighting,
-2D GI, bloom, fog, smoke and synthesized chip audio. HDR lighting and experimental
+WebRTC; co-op enemy strength scales mildly with party size and full-wing pickups
+provide an extra unit. Bosses cycle through attack, shield and damage windows.
+Phone controllers, automatic Xbox/PlayStation button icons, dynamic lighting, 2D GI,
+bloom, fog, smoke and synthesized chip audio are included. HDR lighting and experimental
 HDR display output are capability-gated. See [browser setup and controls](Web/README.md)
 and the [release security audit](Web/SECURITY_AUDIT.md). Browser rooms and saves are
 separate from the native Windows edition. GitHub Pages deployment is included.
+This development build is not yet a published release.
 
 **[Play the browser edition](https://acsokis.github.io/Iron_Nebula/)** — published
 from the contributor fork. Choose **Host wing / Join wing** for browser co-op or
@@ -28,23 +31,28 @@ See [Co-op setup and validation](COOP_SUPPORT.md) for controls, Internet connect
 requirements and the first-alpha limitations. Smooth mouse flight and controller
 icons remain supported. Co-op does not overwrite solo saves/high scores.
 
-**Alpha 0.9.12 — Online Co-op** · Windows desktop · C# / .NET 8 / MonoGame WindowsDX
+**Windows desktop:** MonoGame WindowsDX; the release-hardening branch targets .NET 10.
+The Web/Godot gameplay work is not yet ported to the desktop build; see
+[AI handoff](AI_HANDOFF.md) for the current cross-platform status.
 
 A saját fejlesztésű, vízszintesen scrollozó sci-fi shoot ’em up játék. Három szektor, öt váltható és fejleszthető primary weapon, minibossok és főbossok, szektorvégi shop, mentés/Continue, billentyűzet-, egér- és Xbox-kompatibilis kontrollerkezelés.
 
-> **Validation:** Windows Release build and controller/loopback checks pass. A real
+> **Prior baseline validation:** Windows Release build and controller/loopback checks passed. A real
 > game host plus five client processes exercised six ships, all weapons, all three
 > sectors and a rendered guest. Physical multi-PC Internet/LAN testing and a full
-> human campaign playthrough remain pending. See [details](COOP_SUPPORT.md).
+> human campaign playthrough remain pending. This 0.10.0 gameplay work has not
+> yet been ported to or validated on Windows. See [details](COOP_SUPPORT.md).
 
 ## Indítás Windowson
 
-1. Telepítsd a **.NET 8 SDK-t**.
+1. Telepítsd a **.NET 10 SDK-t**.
 2. A teljes forrásprojekt gyökeréből futtasd a `BUILD_WINDOWS.bat` fájlt.
 3. A kiadáshoz használd a `PUBLISH_WINDOWS.bat` parancsfájlt.
 4. A szükséges képi és audioasseteknek az `Assets/` mappában kell lenniük.
 
-A projekt Windowsra készült; a fő projektfájl: `IronNebula.csproj`. A MonoGame-csomag a projektben rögzített verzióval áll vissza.
+The Windows release-hardening branch targets .NET 10; its main project file is
+`IronNebula.csproj`. See the [handoff](AI_HANDOFF.md) before continuing platform
+parity work.
 
 ## Játékmenet
 

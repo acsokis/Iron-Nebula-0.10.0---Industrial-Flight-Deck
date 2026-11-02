@@ -2,7 +2,10 @@
 
 ## Termék és technológia
 
-A projekt saját fejlesztésű, Katakis-jellegű, de egyedi modern sci-fi horizontális shooter. Kizárólag **Windows natív** alkalmazás, .NET 8 és MonoGame WindowsDX; webes/HTML változat nem cél. A fejlesztés Alpha verziókon keresztül, a felhasználó folyamatos gyakorlati tesztjei alapján haladt.
+A projekt saját fejlesztésű sci-fi horizontális shooter, külön Windows desktop,
+WebGL2 és kísérleti Godot változattal. A változatok funkcióparitása még nem
+teljes; a történeti mérföldkövek mellett az aktuális, ellenőrzött állapotot az
+[AI handoff](AI_HANDOFF.md) rögzíti.
 
 ## Vizuális irányok és visszajelzések
 
@@ -41,3 +44,6 @@ A projekt saját fejlesztésű, Katakis-jellegű, de egyedi modern sci-fi horizo
 - A fejlesztés alapja az aktuális Git-ág forrásállapota.
 - A módosítások közvetlenül a repóban, Codexben ellenőrizhető szerkesztésekkel készülnek.
 - A projekt GitHub repositoryban követhető, rendszeres commitokkal, CI-ellenőrzéssel és changeloggal.
+- A 0.10.0 fejlesztési kör a Web és Godot változatban bevezeti a sérüléshez kötött
+  metallic frame-et, a boss támadás/pajzs/sebzés ciklusát és a visszafogott
+  co-op party-skálázást. A Windows desktop port és a kiadás még hátravan.

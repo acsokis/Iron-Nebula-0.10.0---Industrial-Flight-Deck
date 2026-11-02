@@ -1,6 +1,13 @@
 # IRON NEBULA – Teljes CHANGELOG
 
-A projekthez tartozó kiadástörténet 2026. október 28-i állapot szerint. A felsorolt Alpha változatok a fejlesztés történeti mérföldkövei; a csomag a **0.9.11.2** állapotot reprezentálja. A fejlesztések funkcionális összefoglalói alapján készült, nem külön-külön Git-commitból rekonstruált történet.
+Ez a fájl kiadási előzményeket és fejlesztés alatt álló, még nem publikált munkát különít el. A történeti bejegyzések összefoglalók, nem commitonként rekonstruált napló.
+
+## Unreleased — 0.10.0 development
+
+- Web: damage-dependent metallic hull frames; timed boss attack, shield and damage phases; restrained co-op enemy scaling and improved full-wing pickup yields.
+- Godot preview: matching hull-frame visibility, boss phases, party-size scaling and party-size-aware health/shield pickups. This preview still has no network co-op.
+- Automated Web, Playwright and Godot checks pass; see [AI handoff](AI_HANDOFF.md) for exact commands and current branch status.
+- Windows desktop parity, a clean Release build, release archives, push and GitHub Release remain unfinished. This is not a published 0.10.0 release.
 
 ## Godot engine preview iteration
 

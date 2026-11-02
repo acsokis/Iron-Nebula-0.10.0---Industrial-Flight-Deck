@@ -1,20 +1,30 @@
-# IRON NEBULA — Alpha 0.9.2.1 – Readable GUI Rebuild
+# IRON NEBULA — fejlesztési áttekintés
 
-Az Alpha 0.9.2 mentés-, kontroller- és játékmeneti rendszereit megtartó, célzott GUI-újratervezés.
+Az Iron Nebula egy sci-fi, oldalnézetes arcade shooter három külön fejlesztési
+változattal: Windows desktop, WebGL2 böngészős kiadás és kísérleti Godot-preview.
+A változatok még nem teljesen paritásosak; a Web/Godot fejlesztési állapot és a
+következő lépések az [AI handoff fájlban](AI_HANDOFF.md) követhetők.
 
-## Változások
-- A korábbi furcsa gomb- és panelkereteket nem rajzolja ki a menürendszer. Nagy, sötét, visszafogott sci-fi felületek és erős kijelölés helyettesítik őket.
-- **Főmenü:** nagyobb szövegek, 111 px magas menügombok, egyszerűbb navigáció.
-- **Shop:** egyszerre 3 valóban nagy termékkártya; 126 px ikonok, nagyobb név és leírás; automatikusan gördülő lista a kiválasztás követése érdekében. Külön nagy kiválasztott termék előnézeti panel.
-- **Help:** 4 oldal, javított 4 oldalas lapozás, 2 oszlopban nagyobb és elkülönülő billentyűk/leírások.
-- **Settings:** 2 oszlop és 4 sor; nagyobb feliratok; hangcsúszkák; vezérlés-beállítás képernyőn 8 akció/lap.
-- **Pause menü:** nagy és egységes elemek.
+## Jelenlegi fejlesztés
 
-## Funkciók megőrzése
-A korábbi mentés, 5 primary weapon, két szektor, minibossok és főbossok, shopárak, kontroller, hangok és beállítások megmaradtak.
+- A sérülés kezdetétől, a hajó textúrájának alfáját követő metallic frame jelenik
+  meg; teljes javításnál eltűnik.
+- A bossok támadás-, pajzs- és sebzésfázisokat váltanak. A pajzs blokkolja a
+  találatokat, a sebzésfázis nagyobb sebzést enged.
+- Co-opban a játékosszám enyhén növeli az ellenségek erejét. Öt-hat játékosnál
+  az egészség- és pajzsfelvétel, valamint a kreditek egy további egységet adnak.
+- A Web és Godot változat célzott automatikus ellenőrzései átmentek. A Windows
+  desktop megfelelő funkciói és a kiadás még nincsenek befejezve.
 
-## Indítás
-Windows: `BUILD_WINDOWS.bat`. .NET 8 SDK szükséges.
+## Fejlesztés és ellenőrzés
 
-## Ellenőrzési korlát
-Ebben a környezetben Windows / .NET build és valós futó játék képernyőképe nem készült. A forrás és assetek statikus ellenőrzését végezzük el.
+- Web: `cd Web`, `npm.cmd test`, `npm.cmd run build`,
+  `npm.cmd run release:verify`.
+- Godot: a projektgyökérbeli `RUN_GODOT_PREVIEW.bat`; célzott teszt:
+  `Godot/tests/gameplay_checks.gd`.
+- Windows: a desktop-release ág .NET 10-et céloz. Release-buildet és a
+  platformparitást az átadási fájl állapotának megfelelően kell befejezni.
+
+Az AI-k közötti folytatáshoz minden munkamenet elején olvasd el, a végén pedig
+frissítsd az [AI_HANDOFF.md](AI_HANDOFF.md) fájlt. Felhasználó által
+visszavont szerkesztést ne állíts vissza engedély nélkül.

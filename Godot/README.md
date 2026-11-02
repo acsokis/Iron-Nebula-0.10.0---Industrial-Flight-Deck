@@ -32,14 +32,16 @@ failure observed with this experimental NVIDIA engine fork.
 
 Use `--rendering-method gl_compatibility` on hardware without Forward+ support. The browser game remains the existing WebGL2 implementation; this preview does not export hardware RTX to the browser.
 
-Import assets and run the headless movement/collision/model-slot check:
+Import assets and run the synchronous headless gameplay regression check:
 
 ```powershell
 ./.engine/godot-nvidia/bin/godot.windows.editor.x86_64.exe --headless --path . --editor --import
-./.engine/godot-nvidia/bin/godot.windows.editor.x86_64.exe --headless --path . --script Godot/tests/smoke.gd
+./.engine/godot-nvidia/bin/godot.windows.editor.x86_64.exe --headless --path . --script Godot/tests/gameplay_checks.gd
 ```
 
-Headless checks validate scene/script/physics behavior; they do not validate GPU rendering or physical controller input.
+The separate `Godot/tests/smoke.gd` also covers loading UI, input, collision and
+model-slot behavior. Headless checks do not validate GPU rendering or physical
+controller input.
 
 ## What this preview implements
 
@@ -48,6 +50,7 @@ Headless checks validate scene/script/physics behavior; they do not validate GPU
 - Shared original textures loaded directly from `Web/public/assets`. Three generated space plates scroll without mirroring. Browser/native use an edge overlap; Godot uses opaque emission-mapped periodic planes compatible with the path tracer. Scenery, physical wrecks, asteroids and a modular station occupy separate depth layers.
 - A separately seeded, bounded procedural physical field with zero-gravity Jolt rigid bodies, CCD, full-volume spawn checks and destructible near-field asteroids/wrecks. Capsule-based flight navigation checks complete swept corridors and waits when blocked; players exclude one another from collision masks.
 - WASD/left-stick flight, mouse/RT fire, five selectable primary weapons (`1`-`5`) with distinct cadence, damage, spread and projectile scale, default tethered mouse following, bounded GPU-instanced projectiles, enemy spawning and hit scoring. `T` toggles tethering, `Tab` previews the next sector, `Esc` exits.
+- The preview displays a metallic backing frame only after hull damage; its silhouette follows the source texture alpha. Bosses cycle through 6 seconds of attack, 3 seconds of shield and 4 seconds of damage. The `--party-size=1..6` preview option exercises restrained enemy scaling and larger health/shield pickups; it does not enable network co-op.
 - A requested-by-default NVIDIA path-tracing setting that activates only if the fork exposes the property and Vulkan reports ray-tracing pipeline support. The HUD reports the selected path. Raster mode is the fallback.
 
 ## Rendering and parity boundaries
@@ -60,4 +63,4 @@ Local validation: source-built NVIDIA engine, headless movement/collision/model 
 
 `-- --raster-preview` selects the VoxelGI fallback for comparison. Both modes were viewport-captured locally; the path-traced preview uses emission-mapped cutout sprite art and opaque emission background planes. The experimental fork still prints `OpTypeForwardPointer is not supported yet`; full material/denoiser parity remains outside this preview's acceptance evidence.
 
-Campaign progression, bosses, full weapon progression and balance parity, shop/upgrades/saves, native-style menus, audio, touch/phone input, advanced haptics and network co-op are **not ported to this preview yet**. Use the existing native/browser builds for those features. See the [executive roadmap](../ROADMAP.md) for migration acceptance criteria.
+The complete campaign and boss progression, full weapon/economy balance, shop/upgrades/saves, native-style menus, audio, touch/phone input, advanced haptics and network co-op are **not ported to this preview yet**. The combat-phase and party-size checks are a testable foundation, not feature parity. Use the existing native/browser builds for complete campaigns. See the [executive roadmap](../ROADMAP.md) and [AI handoff](../AI_HANDOFF.md).
