@@ -17,9 +17,8 @@ change or test in another implementation.
 
 ## Current working state
 
-- Working branch: `engine/godot-nvidia`; current committed baseline:
-  `0c70762`. The Godot, documentation and release-script changes from the
-  current work session are not committed yet.
+- Working branch: `engine/godot-nvidia`; latest validated commit:
+  `9967627d7a92bacebb6139e4f2188ecffec89c72` (local, not yet pushed).
 - Windows targets .NET 10 and includes damage-responsive metallic hull
   presentation and cross-platform gameplay refinements. Runtime source art and
   audio are present in `Assets/`; unused legacy sprites were removed. The
